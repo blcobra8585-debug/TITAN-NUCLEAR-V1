@@ -31,27 +31,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [serverUrl, setServerUrlState] = useState("");
 
   useEffect(() => {
-    loadSettings();
+    loadSettings().catch(() => {});
   }, []);
 
   async function loadSettings() {
-    const tm = await AsyncStorage.getItem("titan_mode");
-    setTitanModeState(tm === "true");
-    const gk = await AsyncStorage.getItem("gemini_api_key");
-    setGeminiKeyState(gk ?? "");
-    const wa = await AsyncStorage.getItem("wa_token");
-    setWaTokenState(wa ?? "");
-    const wb = await AsyncStorage.getItem("waba_id");
-    setWabaIdState(wb ?? "");
-    const el = await AsyncStorage.getItem("elevenlabs_api_key");
-    setElevenLabsKeyState(el ?? "");
-    const su = await AsyncStorage.getItem("server_url");
-    setServerUrlState(su ?? "");
+    try {
+      const [tm, gk, wa, wb, el, su] = await Promise.all([
+        AsyncStorage.getItem("titan_mode").catch(() => null),
+        AsyncStorage.getItem("gemini_api_key").catch(() => null),
+        AsyncStorage.getItem("wa_token").catch(() => null),
+        AsyncStorage.getItem("waba_id").catch(() => null),
+        AsyncStorage.getItem("elevenlabs_api_key").catch(() => null),
+        AsyncStorage.getItem("server_url").catch(() => null),
+      ]);
+      setTitanModeState(tm === "true");
+      setGeminiKeyState(gk ?? "");
+      setWaTokenState(wa ?? "");
+      setWabaIdState(wb ?? "");
+      setElevenLabsKeyState(el ?? "");
+      setServerUrlState(su ?? "");
+    } catch { /* silent */ }
     getTotalRevenue().then(setTotalRevenue).catch(() => {});
   }
 
   const setTitanMode = async (val: boolean) => {
-    await AsyncStorage.setItem("titan_mode", val ? "true" : "false");
+    await AsyncStorage.setItem("titan_mode", val ? "true" : "false").catch(() => {});
     setTitanModeState(val);
   };
   const refreshRevenue = async () => {
@@ -59,23 +63,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTotalRevenue(rev);
   };
   const setGeminiKey = async (key: string) => {
-    await AsyncStorage.setItem("gemini_api_key", key);
+    await AsyncStorage.setItem("gemini_api_key", key).catch(() => {});
     setGeminiKeyState(key);
   };
   const setWaToken = async (token: string) => {
-    await AsyncStorage.setItem("wa_token", token);
+    await AsyncStorage.setItem("wa_token", token).catch(() => {});
     setWaTokenState(token);
   };
   const setWabaId = async (id: string) => {
-    await AsyncStorage.setItem("waba_id", id);
+    await AsyncStorage.setItem("waba_id", id).catch(() => {});
     setWabaIdState(id);
   };
   const setElevenLabsKey = async (key: string) => {
-    await AsyncStorage.setItem("elevenlabs_api_key", key);
+    await AsyncStorage.setItem("elevenlabs_api_key", key).catch(() => {});
     setElevenLabsKeyState(key);
   };
   const setServerUrl = async (url: string) => {
-    await AsyncStorage.setItem("server_url", url);
+    await AsyncStorage.setItem("server_url", url).catch(() => {});
     setServerUrlState(url);
   };
 
@@ -96,4 +100,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export const useApp = () => useContext(AppContext);
+export function useApp() {
+  return useContext(AppContext);
+}
