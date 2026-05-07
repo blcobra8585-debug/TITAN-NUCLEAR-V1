@@ -1,83 +1,63 @@
-/**
- * AUTO LEAD BOT — Server-independent
- * Calls IndiaMART directly from mobile
- * Saves leads directly to Firebase Firestore
- * Runs every 3 hours automatically
- */
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { saveLeadToFirebase, FirebaseLead } from "./firebaseService";
+import { collection, addDoc, query, where, getDocs, Timestamp } from "firebase/firestore";
+import { db } from "./firebase";
 
-const HUNT_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 hours
-let huntTimer: ReturnType<typeof setInterval> | null = null;
-
-export async function startLeadHunting(_serverUrl?: string): Promise<void> {
-  if (huntTimer) return;
-  await runLeadHunt();
-  huntTimer = setInterval(() => runLeadHunt(), HUNT_INTERVAL_MS);
-}
-
-export function stopLeadHunting(): void {
-  if (huntTimer) { clearInterval(huntTimer); huntTimer = null; }
-}
-
-async function runLeadHunt(): Promise<void> {
-  try {
-    const glid = await AsyncStorage.getItem("indiamart_glid");
-    const key = await AsyncStorage.getItem("indiamart_key");
-    if (!glid || !key) return;
-
-    const now = new Date();
-    const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const fmt = (d: Date) =>
-      `${d.getDate().toString().padStart(2, "0")}-${(d.getMonth() + 1)
-        .toString().padStart(2, "0")}-${d.getFullYear()} 00:00:00`;
-
-    const url =
-      `https://mapi.indiamart.com/wservce/crm/crmListing/v2/?` +
-      `glusr_crm_key=${encodeURIComponent(key)}` +
-      `&glusr_crm_glid=${encodeURIComponent(glid)}` +
-      `&glusr_crm_start_time=${encodeURIComponent(fmt(start))}` +
-      `&glusr_crm_end_time=${encodeURIComponent(fmt(now))}`;
-
-    const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
-    const data = await res.json() as any;
-    const inquiries = data.RESPONSE?.STATUS === 1 ? (data.RESPONSE?.RESULTS ?? []) : [];
-
-    for (const inq of inquiries) {
-      const lead: FirebaseLead = {
-        id: `im_${inq.UNIQUE_QUERY_ID ?? Date.now()}`,
-        source: "IndiaMART",
-        name: inq.SENDER_NAME ?? "Unknown",
-        phone: inq.SENDER_MOBILE ?? inq.SENDER_PHONE ?? "",
-        email: inq.SENDER_EMAIL ?? "",
-        message: inq.QUERY_MESSAGE ?? inq.SUBJECT ?? "Product inquiry",
-        product: inq.QUERY_PRODUCT_NAME ?? "",
-        location: inq.SENDER_CITY ?? "",
-        timestamp: new Date(inq.QUERY_TIME ?? Date.now()).getTime(),
-        replied: false,
-      };
-      await saveLeadToFirebase(lead).catch(() => {});
-    }
-
-    await AsyncStorage.setItem("last_lead_hunt", Date.now().toString());
-  } catch {}
-}
+const LAST_HUNT_KEY = "last_lead_hunt_ts";
+const MIN_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours minimum
 
 export async function getLastHuntTime(): Promise<string> {
   try {
-    const last = await AsyncStorage.getItem("last_lead_hunt");
-    if (!last) return "Kabhi nahi";
-    const diff = Date.now() - parseInt(last);
-    if (diff < 60000) return "Abhi";
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} min pehle`;
-    return `${Math.floor(diff / 3600000)} ghante pehle`;
+    const ts = await AsyncStorage.getItem(LAST_HUNT_KEY);
+    if (!ts) return "Never";
+    const d = new Date(parseInt(ts, 10));
+    return d.toLocaleString("en-IN");
   } catch { return "Unknown"; }
 }
 
-export async function getTodayLeadCount(): Promise<number> {
+async function fetchIndiaMART(query_str: string, token: string): Promise<any[]> {
+  const url = `https://mapi.indiamart.com/wservce/enquiry/listing/v2?glusr_usr_guid=${token}&app_version=33.0`;
+  const resp = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!resp.ok) return [];
+  const data = await resp.json();
+  return data?.RESPONSE?.LEADS ?? [];
+}
+
+async function saveLead(lead: any): Promise<void> {
   try {
-    const { getLeadStatsFromFirebase } = await import("./firebaseService");
-    const stats = await getLeadStatsFromFirebase();
-    return stats.today;
-  } catch { return 0; }
+    const phone = lead.SENDER_MOBILE || lead.SENDER_PHONE || "";
+    const name = lead.SENDER_NAME || "Unknown";
+    const message = lead.SUBJECT || lead.MESSAGE || "";
+    const email = lead.SENDER_EMAIL || "";
+    if (!phone && !name) return;
+    const q = query(
+      collection(db, "leads"),
+      where("phone", "==", phone),
+      where("source", "==", "indiamart")
+    );
+    const existing = await getDocs(q);
+    if (!existing.empty) return;
+    await addDoc(collection(db, "leads"), {
+      name, phone, email, message,
+      source: "indiamart",
+      status: "new",
+      createdAt: Timestamp.now(),
+    });
+  } catch { /* silent */ }
+}
+
+export async function startLeadHunting(): Promise<void> {
+  try {
+    const lastHunt = await AsyncStorage.getItem(LAST_HUNT_KEY).catch(() => null);
+    if (lastHunt && Date.now() - parseInt(lastHunt, 10) < MIN_INTERVAL) return;
+
+    const token = await AsyncStorage.getItem("indiamart_token").catch(() => null);
+    if (!token) return;
+
+    await AsyncStorage.setItem(LAST_HUNT_KEY, Date.now().toString()).catch(() => {});
+
+    const leads = await fetchIndiaMART("crane chimney", token);
+    for (const lead of leads.slice(0, 50)) {
+      await saveLead(lead);
+    }
+  } catch { /* silent — don't crash app */ }
 }
