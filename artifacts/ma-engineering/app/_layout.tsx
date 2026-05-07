@@ -21,25 +21,24 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 2, staleTime: 30000 } },
 });
 
+function safeRun(fn: () => Promise<any>, name: string): void {
+  Promise.resolve()
+    .then(fn)
+    .catch(() => {});
+}
+
 function AppInit() {
-  const { serverUrl } = useApp();
-
   useEffect(() => {
-    // Auto-heal storage on startup
-    healStorage().catch(() => {});
-
-    // Check for app updates after 5s
-    const t1 = setTimeout(() => autoCheckUpdate().catch(() => {}), 5000);
-
-    // Start lead hunting (Firebase direct — no server needed)
-    const t2 = setTimeout(() => startLeadHunting().catch(() => {}), 3000);
-
-    // Start recruitment bot
-    const t3 = setTimeout(() => startRecruitmentBot().catch(() => {}), 8000);
-
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    safeRun(healStorage, "healStorage");
+    const t1 = setTimeout(() => safeRun(autoCheckUpdate, "autoUpdate"), 8000);
+    const t2 = setTimeout(() => safeRun(startLeadHunting, "leadBot"), 5000);
+    const t3 = setTimeout(() => safeRun(startRecruitmentBot, "recruitBot"), 12000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
   }, []);
-
   return null;
 }
 
@@ -52,7 +51,9 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded || fontError) SplashScreen.hideAsync();
+    if (fontsLoaded || fontError) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
   }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) return null;
