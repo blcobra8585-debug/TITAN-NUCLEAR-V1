@@ -5,6 +5,16 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Only 1 build at a time — cancel old builds when new push comes
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
+
+# Required for creating releases
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -51,41 +61,60 @@ jobs:
 
       - name: Build Debug APK
         working-directory: artifacts/ma-engineering/android
-        run: ./gradlew assembleDebug --no-daemon -x lint --stacktrace
+        run: ./gradlew assembleDebug --no-daemon -x lint
         env:
-          GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
 
       - name: Find APK
-        run: find artifacts/ma-engineering/android -name '*.apk' | head -10
+        id: find_apk
+        run: |
+          APK_PATH=$(find artifacts/ma-engineering/android -name '*.apk' | head -1)
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "Found APK: $APK_PATH"
 
-      - name: Upload APK artifact
+      - name: Rename APK
+        run: |
+          cp "${{ steps.find_apk.outputs.apk_path }}" MA-TITAN-v${{ github.run_number }}.apk
+
+      - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MA-TITAN-DEBUG-APK
-          path: artifacts/ma-engineering/android/app/build/outputs/apk/debug/app-debug.apk
+          name: MA-TITAN-APK-v${{ github.run_number }}
+          path: MA-TITAN-v${{ github.run_number }}.apk
+          retention-days: 30
 
-      - name: Create GitHub Release
+      - name: Delete old releases (keep latest only)
+        run: |
+          gh release list --limit 5 --json tagName -q '.[].tagName' | tail -n +2 | xargs -I{} gh release delete {} --yes --cleanup-tag 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release with APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-v${{ github.run_number }}
-          name: "MA TITAN v${{ github.run_number }} — Made by Hell 52"
+          tag_name: apk-latest
+          name: "MA TITAN APK — Latest Build (v${{ github.run_number }})"
           body: |
-            ## MA TITAN Engineering App
-            **Made by Hell 52**
+            ## ✅ MA TITAN — Build #${{ github.run_number }}
 
-            ### Install karne ka tarika:
-            1. APK download karo niche se (MA-TITAN-vX.apk)
+            ### 📥 Install karne ka tarika:
+            1. Neeche `MA-TITAN-v${{ github.run_number }}.apk` download karo
             2. Phone mein **Settings → Security → Unknown Sources ON** karo
-            3. APK file open karo aur install karo
+            3. APK file open karo → Install
 
-            ### Features:
-            - Dashboard + Titan Mode (Suhan Siddiqui)
-            - Lily AI Chat (Gemini powered)
-            - Auto Quote Generator + WhatsApp send
-            - Client CRM + Quote History
-            - Admin Panel (API keys config)
+            ### 🚀 Features in this build:
+            - **Lily AI** — Gemini Pro powered, full engineering brain
+            - **Multi-model** — Flash / Pro / 2.0 selector
+            - **WhatsApp Bot** — QR connect + auto-reply + live log
+            - **Auto Quote** — Gemini generated + WhatsApp send
+            - **Push Notifications** — Bot reply alerts
+            - **Firebase sync** — Chat history, quotes, clients
+            - **ElevenLabs Voice** — Lily ki real voice
+            - **Admin Panel** — All API keys + server ping
 
-            > Pure Firebase backend — Replit server ki zaroorat nahi!
-          files: artifacts/ma-engineering/android/app/build/outputs/apk/debug/app-debug.apk
+            **Build:** `${{ github.sha }}`
+          files: MA-TITAN-v${{ github.run_number }}.apk
+          make_latest: true
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
