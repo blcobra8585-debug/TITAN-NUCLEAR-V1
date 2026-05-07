@@ -34,20 +34,26 @@ jobs:
 
       - name: Expo Prebuild (Android)
         working-directory: artifacts/ma-engineering
-        run: pnpm exec expo prebuild --platform android --no-install
+        run: pnpm exec expo prebuild --platform android --no-install --clean
         env:
           EXPO_NO_DOTENV: 1
           CI: 1
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses || true
 
       - name: Make gradlew executable
         working-directory: artifacts/ma-engineering/android
         run: chmod +x gradlew
 
-      - name: Build Release APK
+      - name: Build Debug APK
         working-directory: artifacts/ma-engineering/android
-        run: ./gradlew assembleRelease --no-daemon -x lint
+        run: ./gradlew assembleDebug --no-daemon -x lint --stacktrace
         env:
-          GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx4g
+          GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false
 
       - name: Find APK
         run: find artifacts/ma-engineering/android -name '*.apk' | head -10
@@ -55,8 +61,8 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MA-TITAN-APK
-          path: artifacts/ma-engineering/android/app/build/outputs/apk/release/app-release.apk
+          name: MA-TITAN-DEBUG-APK
+          path: artifacts/ma-engineering/android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -68,18 +74,18 @@ jobs:
             **Made by Hell 52**
 
             ### Install karne ka tarika:
-            1. APK download karo niche se
-            2. Phone mein Settings → Security → Unknown Sources ON karo
+            1. APK download karo niche se (MA-TITAN-vX.apk)
+            2. Phone mein **Settings → Security → Unknown Sources ON** karo
             3. APK file open karo aur install karo
 
             ### Features:
-            - Dashboard + Titan Mode
-            - Lily AI Chat (Gemini)
-            - Auto Quote Generator + WhatsApp
-            - Client CRM + History
-            - Admin Panel
+            - Dashboard + Titan Mode (Suhan Siddiqui)
+            - Lily AI Chat (Gemini powered)
+            - Auto Quote Generator + WhatsApp send
+            - Client CRM + Quote History
+            - Admin Panel (API keys config)
 
-            > Pure Firebase backend — koi server needed nahi!
-          files: artifacts/ma-engineering/android/app/build/outputs/apk/release/app-release.apk
+            > Pure Firebase backend — Replit server ki zaroorat nahi!
+          files: artifacts/ma-engineering/android/app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
