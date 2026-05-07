@@ -58,7 +58,7 @@ export default function SplashScreen() {
         </View>
 
         <Animated.Text style={[styles.brand, { opacity: subtitleOpacity }]}>
-          MA ENGINEERING
+          MADE BY HELL 52
         </Animated.Text>
       </View>
     </View>
