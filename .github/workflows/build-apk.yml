@@ -5,12 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Only 1 build at a time — cancel old builds when new push comes
 concurrency:
   group: build-apk
   cancel-in-progress: true
 
-# Required for creating releases
 permissions:
   contents: write
   actions: read
@@ -70,6 +68,7 @@ jobs:
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx6g -Dorg.gradle.daemon=false"
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
+          CMAKE_PATH: /usr/local/lib/android/sdk/cmake/3.31.3/bin
 
       - name: Find APK
         id: find_apk
@@ -99,26 +98,32 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
-          name: "MA TITAN APK — Latest Build (v${{ github.run_number }})"
+          name: "MA TITAN v3.2 — Build #${{ github.run_number }}"
           body: |
-            ## ✅ MA TITAN — Build #${{ github.run_number }}
+            ## ✅ MA TITAN v3.2 — Build #${{ github.run_number }}
 
             ### 📥 Install karne ka tarika:
             1. Neeche `MA-TITAN-v${{ github.run_number }}.apk` download karo
             2. Phone mein **Settings → Security → Unknown Sources ON** karo
             3. APK file open karo → Install
+            4. Purani app pehle uninstall karo phir install karo
 
-            ### 🚀 Features in this build:
-            - **Lily AI** — Gemini Pro powered, full engineering brain
-            - **Multi-model** — Flash / Pro / 2.0 selector
-            - **WhatsApp Bot** — QR connect + auto-reply + live log
-            - **Auto Quote** — Gemini generated + WhatsApp send
-            - **Push Notifications** — Bot reply alerts
-            - **Firebase sync** — Chat history, quotes, clients
-            - **ElevenLabs Voice** — Lily ki real voice
-            - **Admin Panel** — All API keys + server ping
+            ### 🔧 Kya fix hua is build mein:
+            - ✅ **MAIN CRASH FIX** — react-native-worklets 0.8.2 restore (reanimated 4.3.0 ke liye zaroori)
+            - ✅ App startup crash fix — safeRun wrapper se koi bhi init crash nahi karega
+            - ✅ expo-av plugin properly configured
+            - ✅ Version 3.2.0, versionCode 6
 
-            **Build:** `${{ github.sha }}`
+            ### 🚀 Features:
+            - **TITAN AI** — 10+ AI models (Gemini/GPT/Claude/Groq/DeepSeek)
+            - **Lily Voice** — ElevenLabs TTS
+            - **Lead Bot** — IndiaMART auto-fetch → Firebase
+            - **Recruit Bot** — Auto job posting
+            - **Firebase sync** — Real-time data
+            - **Auto Update** — GitHub release checker
+            - **PIN Security** — App lock
+
+            **Build SHA:** `${{ github.sha }}`
           files: MA-TITAN-v${{ github.run_number }}.apk
           make_latest: true
           fail_on_unmatched_files: false
