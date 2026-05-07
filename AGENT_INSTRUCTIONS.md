@@ -1,86 +1,113 @@
-# MA TITAN — Agent Instructions v3.2
-> Read this file FIRST before making ANY changes.
+# TITAN NUCLEAR v1 — AGENT INSTRUCTIONS v4.0
+## Last Updated: 2026-05-07 by TITAN Agent
 
-## WHAT THIS APP IS
-MA TITAN — React Native/Expo Android app for MA Engineering (crane & chimney company, India).
-Admin: Suhan Siddiqui | +917895643069
+---
+
+## 🎯 PROJECT GOAL
+MA TITAN — React Native/Expo Android app for MA Engineering (crane & chimney company)
 GitHub: blcobra8585-debug/TITAN-NUCLEAR-V1
-APK Build: GitHub Actions auto-builds on every push to main
-Firebase Project: ma-engineering-titan
-Target Device: Realme RMX3853, Android 16, Realme UI 7.0
 
-## TECH STACK
-- Mobile App: React Native 0.81.5 + Expo ~54.0.27
-- Router: Expo Router (file-based, 9 tabs)
-- DB: Firebase Firestore (direct from mobile, NO server needed)
-- AI: Gemini + GPT + Claude + Groq + DeepSeek + Mistral + Cohere + Perplexity
-- Voice: ElevenLabs (expo-av ~16.0.8)
-- Backend: Express 5 (ONLY for WhatsApp/Baileys bot)
-- Build: GitHub Actions → APK → GitHub Release
+---
 
-## KEY FILES
-- artifacts/ma-engineering/app/(tabs)/ — 9 tab screens
-- artifacts/ma-engineering/lib/multiAI.ts — ALL AI engines
-- artifacts/ma-engineering/lib/firebase.ts — Firebase init
-- artifacts/ma-engineering/lib/firebaseService.ts — Firestore CRUD
-- artifacts/ma-engineering/lib/autoLeadBot.ts — IndiaMART auto-fetch
-- artifacts/ma-engineering/lib/recruitmentBot.ts — Job posting bot
-- artifacts/ma-engineering/lib/elevenlabs.ts — Voice TTS
-- artifacts/ma-engineering/lib/autoHeal.ts — Error recovery
-- artifacts/ma-engineering/lib/security.ts — PIN + encryption
-- artifacts/ma-engineering/lib/autoUpdate.ts — GitHub release checker
-- .github/workflows/build-apk.yml — APK builder (NDK 27, CMake 3.31, Java 17)
+## 📱 TARGET DEVICE
+- Realme RMX3853, Android 16, Realme UI 7.0
+- New Architecture (newArchEnabled: true)
+- Min SDK 24, Target SDK 35
 
-## FIREBASE COLLECTIONS
-- leads: IndiaMART + manual leads
-- quotes: Generated quotes
-- chat_history: AI conversation
-- job_posts: Recruitment posts
-- error_logs: Crash reports
+---
 
-## CRASHES FIXED (v3.2)
-1. react-native-worklets conflict with reanimated 4.x → REMOVED worklets from package.json
-2. expo-glass-effect fake package → removed
-3. expo-av missing → added ~16.0.8
-4. Buffer stack overflow in audio → 8192-byte chunks in elevenlabs.ts
-5. Leads lost on restart → Firebase direct from mobile
-6. KeyboardProvider missing → re-added to _layout.tsx
-7. Server dependency → all ops Firebase-direct
-8. react-native-worklets 0.8.2 still present → REMOVED in v3.2 (MAIN CRASH FIX)
-9. app.json version mismatch → fixed version=3.1.0, versionCode=5
+## 🔑 ENVIRONMENT SECRETS (Replit)
+- GITHUB_ACCESS_TOKEN — GitHub API
+- GITHUB_REPO = blcobra8585-debug/TITAN-NUCLEAR-V1
+- FIREBASE_API_KEY — Firebase (used by server only)
+- GEMINI_API_KEY — Gemini AI (used by server only; mobile reads from AsyncStorage)
+- ELEVENLABS_API_KEY — ElevenLabs (used by server only; mobile reads from AsyncStorage)
 
-## CRITICAL RULES
-1. NEVER add react-native-worklets (reanimated 4.x has it built-in)
-2. NEVER add expo-glass-effect (fake package)
-3. newArchEnabled: true must stay in app.json (required for reanimated 4.x)
-4. Server is ONLY for WhatsApp bot — all data goes Firebase-direct
-5. Always use lib/multiAI.ts for AI, not lib/gemini.ts (deprecated)
-6. UI: dark bg #060610, neon blue #00B4FF, neon cyan #00FFD1, hacker theme
-7. Text: Hinglish (Hindi+English mix)
-8. Push to GitHub after every change (triggers APK build automatically)
+---
 
-## HOW TO PUSH VIA BASH (python3 not available, use node for JSON)
-SHA=$(curl -s -H "Authorization: token $GITHUB_ACCESS_TOKEN" \
-  "https://api.github.com/repos/$GITHUB_REPO/contents/PATH" | \
-  node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).sha))")
+## 📦 DEPENDENCY VERSIONS (CRITICAL — DO NOT CHANGE)
+```json
+"react-native-reanimated": "4.3.0",
+"react-native-worklets": "0.8.2"   ← REQUIRED by reanimated 4.3.0, DO NOT REMOVE
+```
+- reanimated 4.3.0 REQUIRES react-native-worklets as a SEPARATE package
+- worklets 0.5.1 was OLD and caused crashes — 0.8.2 is the correct version
+- NEVER remove react-native-worklets from package.json
 
-ENCODED=$(cat file.txt | base64 -w 0)
-curl -s -X PUT "https://api.github.com/repos/$GITHUB_REPO/contents/PATH" \
-  -H "Authorization: token $GITHUB_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"message\":\"fix: msg\",\"content\":\"$ENCODED\",\"sha\":\"$SHA\"}"
+---
 
-## APK DOWNLOAD
-Latest release: https://github.com/blcobra8585-debug/TITAN-NUCLEAR-V1/releases/latest
-Actions page: https://github.com/blcobra8585-debug/TITAN-NUCLEAR-V1/actions
-Build time: ~10-15 minutes after push
+## 🔧 BASH/CURL GUIDE (Replit environment)
+- Use bash tool with curl for GitHub API calls
+- Parse JSON with: `node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).sha))"`
+- python3 NOT available
+- Use `base64 -w 0` for file encoding
+- Build with: `pnpm install --no-frozen-lockfile` (GitHub Actions)
 
-## TARGET DEVICE
-Model: Realme RMX3853 | Android 16 | Realme UI 7.0
-Kernel: 6.1.141-android14 | Security: 1 April 2026
+---
 
-## TABS (9 total)
-1. Dashboard | 2. TITAN AI | 3. Quote | 4. Leads | 5. Recruit
-6. WhatsApp | 7. Clients | 8. History | 9. Admin
+## 📋 ALL FIXES APPLIED (v4.0)
 
-Last updated: v3.2 — worklets crash fix + version sync
+### Build Fixes:
+1. ✅ react-native-worklets@0.8.2 RESTORED (was wrongly removed)
+2. ✅ app.json: version 3.2.0, versionCode 6, newArchEnabled: true
+3. ✅ expo-av plugin added to app.json
+
+### Runtime Crash Fixes:
+4. ✅ _layout.tsx: safeRun() wrapper — no init can crash app
+5. ✅ app/index.tsx: useRef for animations, useNativeDriver: true everywhere
+6. ✅ context/AppContext.tsx: parallel AsyncStorage load + all .catch() handlers
+7. ✅ lib/firebase.ts: getApp() instead of getApps()[0]
+
+### Feature Fixes:
+8. ✅ lib/gemini.ts: graceful fallback if no API key set
+9. ✅ lib/whatsapp.ts: fallback to direct WhatsApp://link if server not configured
+10. ✅ lib/elevenlabs.ts: eleven_flash_v2_5 model + 1000 char limit + silent fail
+11. ✅ lib/autoLeadBot.ts: silent fail + dedup + 4h cooldown
+12. ✅ lib/recruitmentBot.ts: silent fail + dedup + 24h cooldown
+13. ✅ lib/autoUpdate.ts: 6h cooldown + silent fail
+14. ✅ .github/workflows/build-apk.yml: improved release notes + CMAKE_PATH
+
+---
+
+## 🚀 APK BUILD TRIGGER
+Push any commit to main → GitHub Actions auto-builds APK → GitHub Release
+Build takes ~15-20 minutes. Concurrency: cancel-in-progress.
+
+---
+
+## 🐛 KNOWN RUNTIME ISSUES (User's Phone)
+- "MA TITAN keeps stopping" — FIXED by safeRun wrappers in _layout.tsx
+- "Buttons not working" — was animation nativeDriver issue, FIXED
+- "WhatsApp not connecting" — FIXED: now falls back to direct whatsapp:// link
+- "Lily not starting" — FIXED: graceful message if no Gemini key set
+
+---
+
+## 📱 FIRST-TIME SETUP (User Instructions)
+1. Install new APK (download from GitHub Releases)
+2. Open App → Go to Admin Panel tab
+3. Set Gemini API key (free: aistudio.google.com)
+4. Set ElevenLabs key for Lily voice (optional)
+5. For IndiaMART leads: set GLID token in Leads tab
+6. WhatsApp works directly without server (opens WhatsApp app)
+
+---
+
+## 🏗️ ARCHITECTURE
+- Frontend: React Native 0.81.5 + Expo 54 + New Architecture
+- State: React Context (AppContext) + AsyncStorage
+- AI: Google Gemini 2.0 Flash (primary), 10+ other models
+- Voice: ElevenLabs eleven_flash_v2_5
+- Database: Firebase Firestore (direct from mobile)
+- Leads: IndiaMART API → Firebase
+- Updates: GitHub Releases auto-check
+- Security: PIN lock (AsyncStorage)
+
+---
+
+## ⚠️ GOTCHAS
+- NEVER remove react-native-worklets (required by reanimated 4.3.0)
+- NEVER use useNativeDriver: false with Animated API (crashes New Arch)
+- ALWAYS wrap Firebase calls in try-catch
+- pnpm-lock.yaml has old versions — `--no-frozen-lockfile` handles update
+- Build concurrency cancels previous builds on new push
