@@ -26,3 +26,12 @@ externalPort = 8080
 [[ports]]
 localPort = 8081
 externalPort = 80
+
+[userenv]
+
+[userenv.shared]
+FIREBASE_PROJECT_ID = "ma-engineering-titan"
+FIREBASE_PROJECT_NUMBER = "132870376585"
+FIREBASE_STORAGE_BUCKET = "ma-engineering-titan.firebasestorage.app"
+FIREBASE_ANDROID_APP_ID = "1:132870376585:android:6ab5faa40b6e5da5390a58"
+FIREBASE_ANDROID_PACKAGE_NAME = "com.maengineering"
