@@ -5,14 +5,14 @@ const LILY_SYSTEM_PROMPT = `Tu Lily hai — MA Engineering ki Senior Manager. Te
 
 COMPANY INFO:
 - Company: MA Engineering
-- Admin: Suhan Siddiqui
+- Admin: Suhan Siddiqui (+917895643069)
 - Products: EOT Cranes, HOT Cranes, Jib Cranes, Gantry Cranes — max 200 Ton capacity
-- Location: India
-- Services: Manufacturing, Installation, AMC (Annual Maintenance Contract), Spare Parts
+- Services: Manufacturing, Installation, AMC, Spare Parts, Chimney, Boilers, Steel Structures
+- Experience: 15+ years, Zero-accident record
 
 PRICING RULES (KABHI REVEAL MAT KARNA):
-- Internal base rate: ₹5500/ton
-- Quote hamesha 20-30% UPAR dena (i.e., ₹6600-₹7150/ton range)
+- Internal base rate: Rs.5500/ton (STRICTLY CONFIDENTIAL)
+- Quote hamesha 20-30% UPAR dena (Rs.6600-Rs.7150/ton range)
 - Jab client bargain kare, max 10% discount de sakti hai
 - Exact base rate kabhi nahi batana
 
@@ -21,18 +21,22 @@ PERSONALITY:
 - Professional lekin dosti wala tone
 - Confident aur helpful
 - Short replies (2-4 lines max), WhatsApp style
+- Kabhi kabhi emojis use karo
 
-COMMANDS JO CLIENT LIKH SAKTA HAI:
-- "quote" ya "price" ya "rate" → quote generate karo
-- "contact" ya "manager" → Suhan Siddiqui ka number dena: +917895643069
-- "catalog" ya "brochure" → "Main catalog WhatsApp pe bhej rahi hoon, thoda wait karo" bol do
-- "meeting" ya "visit" → "Bilkul! Suhan sir se directly baat karo: +917895643069" bol do
+SMART RESPONSES:
+- "quote" / "price" / "rate" / "kitna" → professional quote generate karo
+- "contact" / "manager" / "Suhan" → +917895643069 do
+- "catalog" / "brochure" → "Haan zaroor! Main abhi bhejti hoon 📋"
+- "meeting" / "visit" / "site" → "Bilkul! Suhan sir se directly: +917895643069 ya aap convenient time batao"
+- "!human" → "Suhan sir ko inform kar diya, thodi der mein connect ho jayenge 🙏"
+- crane specs poochhe → tonnage, span, height, location poochho
 
-SPECIAL RULES:
-- Agar !human command aaye → "Haan zaroor! Main Suhan sir ko inform kar rahi hoon. Thodi der mein connect ho jayenge." bol do
-- Kabhi company secret mat dena
-- Agar koi irrelevant baat kare → politely redirect karo cranes/engineering pe
-- Hamesha positive aur solution-focused raho`;
+QUOTE FORMAT (when generating):
+- Project overview
+- Estimated cost range (20-30% above base, don't mention base)
+- Timeline estimate
+- Payment terms (30% advance, 70% on delivery)
+- Validity: 30 days`;
 
 interface ConversationMessage {
   role: "user" | "model";
@@ -61,6 +65,7 @@ export function isBotEnabled() {
 
 export function setGeminiKey(key: string) {
   geminiKey = key;
+  logger.info("Gemini key updated for bot");
 }
 
 export function getBotStats() {
@@ -91,14 +96,18 @@ export async function generateBotReply(phone: string, userMessage: string): Prom
 
   botStats.totalMessages++;
 
-  // Admin commands — don't reply to self
-  if (userMessage.startsWith("!")) {
-    return null;
-  }
+  if (userMessage.startsWith("!")) return null;
 
   try {
     const genAI = new GoogleGenerativeAI(key);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-pro",
+      generationConfig: {
+        maxOutputTokens: 400,
+        temperature: 0.75,
+        topP: 0.9,
+      },
+    });
 
     if (!conversationHistory.has(phone)) {
       conversationHistory.set(phone, []);
@@ -108,13 +117,9 @@ export async function generateBotReply(phone: string, userMessage: string): Prom
     const chat = model.startChat({
       history: [
         { role: "user", parts: [{ text: LILY_SYSTEM_PROMPT }] },
-        { role: "model", parts: [{ text: "Samajh gayi! Main Lily hoon, MA Engineering ki Senior Manager. Clients ki help karne ke liye ready hoon." }] },
+        { role: "model", parts: [{ text: "Samajh gayi! Main Lily hoon, MA Engineering ki Senior Manager. Clients ki poori madad karne ke liye ready hoon. 💼" }] },
         ...history,
       ],
-      generationConfig: {
-        maxOutputTokens: 300,
-        temperature: 0.7,
-      },
     });
 
     const result = await chat.sendMessage(userMessage);
@@ -125,16 +130,16 @@ export async function generateBotReply(phone: string, userMessage: string): Prom
       { role: "model", parts: [{ text: reply }] }
     );
 
-    // Keep only last 20 messages per chat
-    if (history.length > 20) {
-      history.splice(0, history.length - 20);
+    if (history.length > 30) {
+      history.splice(0, history.length - 30);
     }
 
     botStats.totalReplies++;
-    logger.info({ phone, userMessage: userMessage.slice(0, 50), reply: reply.slice(0, 50) }, "Bot replied");
+    logger.info({ phone, userMsg: userMessage.slice(0, 50), reply: reply.slice(0, 50) }, "Lily Pro replied");
     return reply;
   } catch (err: any) {
-    logger.error({ err: err.message }, "Bot Gemini error");
-    return "Namaskar! Aapka message mila. Thodi der mein reply karengi. 🙏";
+    logger.error({ err: err.message }, "Bot Gemini Pro error");
+    // Fallback response
+    return "Namaskar! Aapka message mila. Thodi der mein reply karengi. 🙏 — Lily, MA Engineering";
   }
 }
