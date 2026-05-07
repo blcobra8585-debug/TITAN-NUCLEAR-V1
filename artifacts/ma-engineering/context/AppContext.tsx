@@ -13,6 +13,10 @@ interface AppContextType {
   setWaToken: (token: string) => Promise<void>;
   wabaId: string;
   setWabaId: (id: string) => Promise<void>;
+  elevenLabsKey: string;
+  setElevenLabsKey: (key: string) => Promise<void>;
+  serverUrl: string;
+  setServerUrl: (url: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType>({} as AppContextType);
@@ -23,6 +27,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [geminiKey, setGeminiKeyState] = useState("");
   const [waToken, setWaTokenState] = useState("");
   const [wabaId, setWabaIdState] = useState("");
+  const [elevenLabsKey, setElevenLabsKeyState] = useState("");
+  const [serverUrl, setServerUrlState] = useState("");
 
   useEffect(() => {
     loadSettings();
@@ -37,21 +43,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setWaTokenState(wa ?? "");
     const wb = await AsyncStorage.getItem("waba_id");
     setWabaIdState(wb ?? "");
-    getTotalRevenue()
-      .then(setTotalRevenue)
-      .catch(() => {});
+    const el = await AsyncStorage.getItem("elevenlabs_api_key");
+    setElevenLabsKeyState(el ?? "");
+    const su = await AsyncStorage.getItem("server_url");
+    setServerUrlState(su ?? "");
+    getTotalRevenue().then(setTotalRevenue).catch(() => {});
   }
 
   const setTitanMode = async (val: boolean) => {
     await AsyncStorage.setItem("titan_mode", val ? "true" : "false");
     setTitanModeState(val);
   };
-
   const refreshRevenue = async () => {
     const rev = await getTotalRevenue().catch(() => 0);
     setTotalRevenue(rev);
   };
-
   const setGeminiKey = async (key: string) => {
     await AsyncStorage.setItem("gemini_api_key", key);
     setGeminiKeyState(key);
@@ -64,20 +70,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem("waba_id", id);
     setWabaIdState(id);
   };
+  const setElevenLabsKey = async (key: string) => {
+    await AsyncStorage.setItem("elevenlabs_api_key", key);
+    setElevenLabsKeyState(key);
+  };
+  const setServerUrl = async (url: string) => {
+    await AsyncStorage.setItem("server_url", url);
+    setServerUrlState(url);
+  };
 
   return (
     <AppContext.Provider
       value={{
-        titanMode,
-        setTitanMode,
-        totalRevenue,
-        refreshRevenue,
-        geminiKey,
-        setGeminiKey,
-        waToken,
-        setWaToken,
-        wabaId,
-        setWabaId,
+        titanMode, setTitanMode,
+        totalRevenue, refreshRevenue,
+        geminiKey, setGeminiKey,
+        waToken, setWaToken,
+        wabaId, setWabaId,
+        elevenLabsKey, setElevenLabsKey,
+        serverUrl, setServerUrl,
       }}
     >
       {children}
