@@ -1,94 +1,73 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 
-const VOICE_ID = "Pt5YrLNyu6d2s3s4CVMg";
+const DEFAULT_VOICE_ID = "cgSgspJ2msm6clMCkdW9";
 const BASE_URL = "https://api.elevenlabs.io/v1";
-
-let sound: Audio.Sound | null = null;
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const CHUNK = 8192;
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(binary);
-}
 
 export async function speakWithLily(text: string): Promise<void> {
   try {
-    const apiKey = await AsyncStorage.getItem("elevenlabs_api_key");
+    const apiKey = await AsyncStorage.getItem("elevenlabs_api_key").catch(() => null);
     if (!apiKey) return;
 
-    if (sound) {
-      await sound.stopAsync().catch(() => {});
-      await sound.unloadAsync().catch(() => {});
-      sound = null;
-    }
+    const voiceId = await AsyncStorage.getItem("elevenlabs_voice_id").catch(() => null) ?? DEFAULT_VOICE_ID;
 
-    const cleanText = text
-      .replace(/\*\*(.*?)\*\*/g, "$1")
-      .replace(/\*(.*?)\*/g, "$1")
-      .replace(/#{1,6}\s/g, "")
-      .replace(/`/g, "")
-      .slice(0, 1000);
+    const maxChars = 1000;
+    const cleanText = text.slice(0, maxChars).replace(/\*+/g, "").replace(/#{1,6}\s/g, "");
 
-    const response = await fetch(
-      `${BASE_URL}/text-to-speech/${VOICE_ID}/stream`,
-      {
-        method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
-          Accept: "audio/mpeg",
-        },
-        body: JSON.stringify({
-          text: cleanText,
-          model_id: "eleven_turbo_v2_5",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0.4,
-            use_speaker_boost: true,
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) return;
-
-    const arrayBuffer = await response.arrayBuffer();
-    const base64 = arrayBufferToBase64(arrayBuffer);
-    const dataUri = `data:audio/mpeg;base64,${base64}`;
-
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
+    const resp = await fetch(`${BASE_URL}/text-to-speech/${voiceId}/stream`, {
+      method: "POST",
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg",
+      },
+      body: JSON.stringify({
+        text: cleanText,
+        model_id: "eleven_flash_v2_5",
+        voice_settings: { stability: 0.5, similarity_boost: 0.8 },
+      }),
     });
+    if (!resp.ok) return;
 
-    const { sound: newSound } = await Audio.Sound.createAsync(
-      { uri: dataUri },
-      { shouldPlay: true, volume: 1.0 }
-    );
-    sound = newSound;
-
-    sound.setOnPlaybackStatusUpdate((status) => {
-      if (status.isLoaded && status.didJustFinish) {
-        sound?.unloadAsync().catch(() => {});
-        sound = null;
-      }
+    const blob = await resp.blob();
+    const reader = new FileReader();
+    await new Promise<void>((resolve) => {
+      reader.onloadend = async () => {
+        try {
+          const base64 = (reader.result as string).split(",")[1];
+          const { sound } = await Audio.Sound.createAsync(
+            { uri: `data:audio/mp3;base64,${base64}` },
+            { shouldPlay: true, volume: 1.0 }
+          );
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (status.isLoaded && status.didJustFinish) {
+              sound.unloadAsync().catch(() => {});
+              resolve();
+            }
+          });
+        } catch {
+          resolve();
+        }
+      };
+      reader.onerror = () => resolve();
+      reader.readAsDataURL(blob);
     });
-  } catch (e: any) {
-    console.warn("ElevenLabs speak error:", e.message);
+  } catch {
+    // silent fail — voice is optional
   }
 }
 
-export async function stopSpeaking(): Promise<void> {
-  if (sound) {
-    await sound.stopAsync().catch(() => {});
-    await sound.unloadAsync().catch(() => {});
-    sound = null;
+export async function getLilyVoices(): Promise<Array<{ voice_id: string; name: string }>> {
+  try {
+    const apiKey = await AsyncStorage.getItem("elevenlabs_api_key").catch(() => null);
+    if (!apiKey) return [];
+    const resp = await fetch(`${BASE_URL}/voices`, {
+      headers: { "xi-api-key": apiKey },
+    });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return (data.voices ?? []).slice(0, 20);
+  } catch {
+    return [];
   }
 }
