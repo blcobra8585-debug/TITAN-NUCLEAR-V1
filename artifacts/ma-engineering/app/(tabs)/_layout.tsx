@@ -26,14 +26,15 @@ export default function TabLayout() {
         ),
       }}
     >
-      <Tabs.Screen name="index" options={{ title: "Dashboard", tabBarIcon: ({ color }) => <Feather name="grid" size={19} color={color} /> }} />
-      <Tabs.Screen name="chat" options={{ title: "Lily AI", tabBarIcon: ({ color }) => <Feather name="message-circle" size={19} color={color} /> }} />
-      <Tabs.Screen name="quote" options={{ title: "Quote", tabBarIcon: ({ color }) => <Feather name="file-text" size={19} color={color} /> }} />
-      <Tabs.Screen name="leads" options={{ title: "Leads", tabBarIcon: ({ color }) => <Feather name="target" size={19} color={color} /> }} />
-      <Tabs.Screen name="whatsapp" options={{ title: "WhatsApp", tabBarIcon: ({ color }) => <Feather name="smartphone" size={19} color={color} /> }} />
-      <Tabs.Screen name="clients" options={{ title: "Clients", tabBarIcon: ({ color }) => <Feather name="users" size={19} color={color} /> }} />
-      <Tabs.Screen name="history" options={{ title: "History", tabBarIcon: ({ color }) => <Feather name="bar-chart-2" size={19} color={color} /> }} />
-      <Tabs.Screen name="admin" options={{ title: "Admin", tabBarIcon: ({ color }) => <Feather name="shield" size={19} color={color} /> }} />
+      <Tabs.Screen name="index"       options={{ title: "Dashboard",  tabBarIcon: ({ color }) => <Feather name="grid"           size={19} color={color} /> }} />
+      <Tabs.Screen name="chat"        options={{ title: "TITAN AI",   tabBarIcon: ({ color }) => <Feather name="cpu"            size={19} color={color} /> }} />
+      <Tabs.Screen name="quote"       options={{ title: "Quote",      tabBarIcon: ({ color }) => <Feather name="file-text"      size={19} color={color} /> }} />
+      <Tabs.Screen name="leads"       options={{ title: "Leads",      tabBarIcon: ({ color }) => <Feather name="target"         size={19} color={color} /> }} />
+      <Tabs.Screen name="recruitment" options={{ title: "Recruit",    tabBarIcon: ({ color }) => <Feather name="users"          size={19} color={color} /> }} />
+      <Tabs.Screen name="whatsapp"    options={{ title: "WhatsApp",   tabBarIcon: ({ color }) => <Feather name="message-circle" size={19} color={color} /> }} />
+      <Tabs.Screen name="clients"     options={{ title: "Clients",    tabBarIcon: ({ color }) => <Feather name="briefcase"      size={19} color={color} /> }} />
+      <Tabs.Screen name="history"     options={{ title: "History",    tabBarIcon: ({ color }) => <Feather name="bar-chart-2"    size={19} color={color} /> }} />
+      <Tabs.Screen name="admin"       options={{ title: "Admin",      tabBarIcon: ({ color }) => <Feather name="shield"         size={19} color={color} /> }} />
     </Tabs>
   );
 }

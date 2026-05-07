@@ -12,33 +12,51 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { autoCheckUpdate } from "@/lib/autoUpdate";
 import { startLeadHunting } from "@/lib/autoLeadBot";
+import { startRecruitmentBot } from "@/lib/recruitmentBot";
+import { healStorage } from "@/lib/autoHeal";
 
 SplashScreen.preventAutoHideAsync();
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 2, staleTime: 30000 } },
 });
 
 function AppInit() {
   const { serverUrl } = useApp();
+
   useEffect(() => {
-    // Auto update check after 3s (don't block startup)
-    const t = setTimeout(() => { autoCheckUpdate().catch(() => {}); }, 3000);
-    return () => clearTimeout(t);
+    // Auto-heal storage on startup
+    healStorage().catch(() => {});
+
+    // Check for app updates after 5s
+    const t1 = setTimeout(() => autoCheckUpdate().catch(() => {}), 5000);
+
+    // Start lead hunting (Firebase direct — no server needed)
+    const t2 = setTimeout(() => startLeadHunting().catch(() => {}), 3000);
+
+    // Start recruitment bot
+    const t3 = setTimeout(() => startRecruitmentBot().catch(() => {}), 8000);
+
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, []);
-  useEffect(() => {
-    if (serverUrl) startLeadHunting(serverUrl).catch(() => {});
-  }, [serverUrl]);
+
   return null;
 }
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
   });
+
   useEffect(() => {
     if (fontsLoaded || fontError) SplashScreen.hideAsync();
   }, [fontsLoaded, fontError]);
+
   if (!fontsLoaded && !fontError) return null;
+
   return (
     <SafeAreaProvider>
       <ErrorBoundary>

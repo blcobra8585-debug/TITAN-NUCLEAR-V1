@@ -6,22 +6,27 @@ const BASE_URL = "https://api.elevenlabs.io/v1";
 
 let sound: Audio.Sound | null = null;
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const CHUNK = 8192;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
 export async function speakWithLily(text: string): Promise<void> {
   try {
     const apiKey = await AsyncStorage.getItem("elevenlabs_api_key");
-    if (!apiKey) {
-      console.warn("ElevenLabs API key not set");
-      return;
-    }
+    if (!apiKey) return;
 
-    // Stop any currently playing audio
     if (sound) {
       await sound.stopAsync().catch(() => {});
       await sound.unloadAsync().catch(() => {});
       sound = null;
     }
 
-    // Clean text for TTS (remove markdown)
     const cleanText = text
       .replace(/\*\*(.*?)\*\*/g, "$1")
       .replace(/\*(.*?)\*/g, "$1")
@@ -51,15 +56,10 @@ export async function speakWithLily(text: string): Promise<void> {
       }
     );
 
-    if (!response.ok) {
-      console.warn("ElevenLabs error:", response.status);
-      return;
-    }
+    if (!response.ok) return;
 
     const arrayBuffer = await response.arrayBuffer();
-    const base64 = btoa(
-      String.fromCharCode(...new Uint8Array(arrayBuffer))
-    );
+    const base64 = arrayBufferToBase64(arrayBuffer);
     const dataUri = `data:audio/mpeg;base64,${base64}`;
 
     await Audio.setAudioModeAsync({

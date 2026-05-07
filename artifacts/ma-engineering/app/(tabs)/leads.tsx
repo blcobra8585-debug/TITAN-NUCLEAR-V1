@@ -1,27 +1,21 @@
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Modal, Platform, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
-import { useApp } from "@/context/AppContext";
-
-interface Lead {
-  id: string;
-  source: string;
-  name: string;
-  phone: string;
-  email?: string;
-  message: string;
-  product?: string;
-  location?: string;
-  timestamp: number;
-  replied: boolean;
-  replyText?: string;
-}
+import { sendToLily } from "@/lib/gemini";
+import {
+  FirebaseLead,
+  getLeadStatsFromFirebase,
+  listenToLeads,
+  saveLeadToFirebase,
+  updateLeadInFirebase,
+} from "@/lib/firebaseService";
 
 interface LeadStats {
   total: number;
@@ -42,8 +36,7 @@ const SOURCE_COLORS: Record<string, string> = {
 export default function LeadsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { serverUrl } = useApp();
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leads, setLeads] = useState<FirebaseLead[]>([]);
   const [stats, setStats] = useState<LeadStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -54,26 +47,41 @@ export default function LeadsScreen() {
   const [autoReplying, setAutoReplying] = useState(false);
   const [newLead, setNewLead] = useState({ name: "", phone: "", message: "", product: "", location: "" });
   const [activeTab, setActiveTab] = useState<"all" | "unreplied" | "replied">("all");
+  const unsubRef = useRef<(() => void) | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const loadData = useCallback(async () => {
-    if (!serverUrl) return;
-    try {
-      const [leadsRes, statsRes] = await Promise.all([
-        fetch(`${serverUrl}/api/leads/list`, { signal: AbortSignal.timeout(8000) }).then(r => r.json()).catch(() => null),
-        fetch(`${serverUrl}/api/leads/stats`, { signal: AbortSignal.timeout(8000) }).then(r => r.json()).catch(() => null),
-      ]);
-      if (leadsRes?.leads) setLeads(leadsRes.leads);
-      if (statsRes) setStats(statsRes);
-    } catch {}
-  }, [serverUrl]);
+  // Load saved IndiaMART credentials
+  useEffect(() => {
+    AsyncStorage.multiGet(["indiamart_glid", "indiamart_key"]).then((pairs) => {
+      const glid = pairs[0][1] ?? "";
+      const key = pairs[1][1] ?? "";
+      if (glid) setImGlid(glid);
+      if (key) setImKey(key);
+    });
+  }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // Real-time leads from Firebase
+  useEffect(() => {
+    const unsub = listenToLeads((newLeads) => {
+      setLeads(newLeads);
+      // Compute stats inline
+      const total = newLeads.length;
+      const replied = newLeads.filter((l) => l.replied).length;
+      const today = newLeads.filter((l) => l.timestamp > Date.now() - 86400000).length;
+      const bySource = newLeads.reduce((acc, l) => {
+        acc[l.source] = (acc[l.source] ?? 0) + 1; return acc;
+      }, {} as Record<string, number>);
+      setStats({ total, replied, unreplied: total - replied, today, bySource });
+    });
+    unsubRef.current = unsub;
+    return () => unsub();
+  }, []);
 
   async function onRefresh() {
     setRefreshing(true);
-    await loadData();
+    const s = await getLeadStatsFromFirebase();
+    setStats(s);
     setRefreshing(false);
   }
 
@@ -85,18 +93,56 @@ export default function LeadsScreen() {
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const res = await fetch(`${serverUrl}/api/leads/indiamart?glid=${encodeURIComponent(imGlid)}&key=${encodeURIComponent(imKey)}`, { signal: AbortSignal.timeout(20000) });
-      const data = await res.json();
-      if (data.success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("✅ Done!", `${data.leads?.length ?? 0} naye leads mile IndiaMART se!`);
-        setShowImSetup(false);
-        await loadData();
-      } else {
-        Alert.alert("❌ Error", data.error ?? "IndiaMART API failed");
+      // Save credentials for auto-hunting
+      await AsyncStorage.multiSet([
+        ["indiamart_glid", imGlid.trim()],
+        ["indiamart_key", imKey.trim()],
+      ]);
+
+      const now = new Date();
+      const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const fmt = (d: Date) =>
+        `${d.getDate().toString().padStart(2, "0")}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d.getFullYear()} 00:00:00`;
+
+      const url =
+        `https://mapi.indiamart.com/wservce/crm/crmListing/v2/?` +
+        `glusr_crm_key=${encodeURIComponent(imKey.trim())}` +
+        `&glusr_crm_glid=${encodeURIComponent(imGlid.trim())}` +
+        `&glusr_crm_start_time=${encodeURIComponent(fmt(start))}` +
+        `&glusr_crm_end_time=${encodeURIComponent(fmt(now))}`;
+
+      const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+      const data = await res.json() as any;
+      const inquiries = data.RESPONSE?.STATUS === 1 ? (data.RESPONSE?.RESULTS ?? []) : [];
+
+      let newCount = 0;
+      const existingIds = new Set(leads.map((l) => l.id));
+
+      for (const inq of inquiries) {
+        const id = `im_${inq.UNIQUE_QUERY_ID ?? Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        if (existingIds.has(id)) continue;
+        const lead: FirebaseLead = {
+          id,
+          source: "IndiaMART",
+          name: inq.SENDER_NAME ?? "Unknown",
+          phone: inq.SENDER_MOBILE ?? inq.SENDER_PHONE ?? "",
+          email: inq.SENDER_EMAIL ?? "",
+          message: inq.QUERY_MESSAGE ?? inq.SUBJECT ?? "Product inquiry",
+          product: inq.QUERY_PRODUCT_NAME ?? "",
+          location: inq.SENDER_CITY ?? "",
+          timestamp: new Date(inq.QUERY_TIME ?? Date.now()).getTime(),
+          replied: false,
+        };
+        await saveLeadToFirebase(lead);
+        newCount++;
       }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("✅ Done!", `${newCount} naye leads mile IndiaMART se! Firebase mein save ho gaye.`);
+      setShowImSetup(false);
+      await AsyncStorage.setItem("last_lead_hunt", Date.now().toString());
     } catch (e: any) {
-      Alert.alert("❌ Error", e.message);
+      Alert.alert("❌ Error", e.message ?? "IndiaMART fetch failed");
     }
     setLoading(false);
   }
@@ -107,19 +153,37 @@ export default function LeadsScreen() {
       return;
     }
     try {
-      const res = await fetch(`${serverUrl}/api/leads/add`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...newLead, source: "Manual" }),
-        signal: AbortSignal.timeout(8000),
-      });
-      const data = await res.json();
-      if (data.success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setShowAddLead(false);
-        setNewLead({ name: "", phone: "", message: "", product: "", location: "" });
-        await loadData();
-      }
+      const lead: FirebaseLead = {
+        id: `manual_${Date.now()}`,
+        source: "Manual",
+        name: newLead.name.trim(),
+        phone: newLead.phone.trim(),
+        message: newLead.message.trim() || "Inquiry",
+        product: newLead.product.trim(),
+        location: newLead.location.trim(),
+        timestamp: Date.now(),
+        replied: false,
+      };
+      await saveLeadToFirebase(lead);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowAddLead(false);
+      setNewLead({ name: "", phone: "", message: "", product: "", location: "" });
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
+    }
+  }
+
+  async function replyOne(lead: FirebaseLead) {
+    Haptics.selectionAsync();
+    try {
+      const prompt =
+        `New lead from ${lead.source}:\n` +
+        `Client: ${lead.name}${lead.location ? ` (${lead.location})` : ""}\n` +
+        `Message: "${lead.message}"${lead.product ? `\nProduct: ${lead.product}` : ""}\n\n` +
+        `Write a short, professional WhatsApp reply in Hinglish (2-4 lines). Introduce MA Engineering, ask qualifying questions (tonnage? span? application?). Keep it warm and friendly.`;
+      const reply = await sendToLily(prompt);
+      await updateLeadInFirebase(lead.id, { replied: true, replyText: reply });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
       Alert.alert("Error", e.message);
     }
@@ -128,55 +192,32 @@ export default function LeadsScreen() {
   async function autoReplyAll() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setAutoReplying(true);
-    try {
-      const res = await fetch(`${serverUrl}/api/leads/auto-reply-all`, {
-        method: "POST",
-        signal: AbortSignal.timeout(60000),
-      });
-      const data = await res.json();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("✅ Auto-Reply Complete!", `${data.processed} leads ko Lily ne reply kar di!`);
-      await loadData();
-    } catch (e: any) {
-      Alert.alert("Error", e.message);
+    const unreplied = leads.filter((l) => !l.replied).slice(0, 10);
+    let count = 0;
+    for (const lead of unreplied) {
+      try {
+        const prompt =
+          `Lead from ${lead.source}: "${lead.message}"${lead.product ? ` about ${lead.product}` : ""}. Client: ${lead.name}.` +
+          ` Write a short professional Hinglish WhatsApp reply (2-4 lines) from MA Engineering. Ask qualifying questions.`;
+        const reply = await sendToLily(prompt);
+        await updateLeadInFirebase(lead.id, { replied: true, replyText: reply });
+        count++;
+      } catch {}
     }
     setAutoReplying(false);
-  }
-
-  async function replyOne(lead: Lead) {
-    Haptics.selectionAsync();
-    try {
-      const res = await fetch(`${serverUrl}/api/leads/auto-reply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: lead.id }),
-        signal: AbortSignal.timeout(20000),
-      });
-      const data = await res.json();
-      if (data.success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        await loadData();
-      } else {
-        Alert.alert("Error", data.error ?? "Reply failed");
-      }
-    } catch (e: any) {
-      Alert.alert("Error", e.message);
-    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert("✅ Auto-Reply Complete!", `${count} leads ko Lily ne reply kar di!`);
   }
 
   function fmtTime(ts: number) {
-    const d = new Date(ts);
-    const now = new Date();
-    const diff = now.getTime() - ts;
+    const diff = Date.now() - ts;
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    return d.toLocaleDateString("en-IN");
+    return new Date(ts).toLocaleDateString("en-IN");
   }
 
-  const filteredLeads = leads.filter(l =>
-    activeTab === "all" ? true :
-    activeTab === "unreplied" ? !l.replied :
-    l.replied
+  const filteredLeads = leads.filter((l) =>
+    activeTab === "all" ? true : activeTab === "unreplied" ? !l.replied : l.replied
   );
 
   return (
@@ -185,16 +226,23 @@ export default function LeadsScreen() {
       <View style={[styles.header, { paddingTop: topPad + 12, backgroundColor: colors.background }]}>
         <View>
           <Text style={[styles.title, { color: colors.neonBlue }]}>LEAD BOT 🤖</Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Auto Lead Generator • IndiaMART + B2B</Text>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+            Auto Lead Generator • Firebase Sync
+          </Text>
         </View>
-        <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.neonBlue }]} onPress={() => setShowAddLead(true)}>
+        <TouchableOpacity
+          style={[styles.addBtn, { backgroundColor: colors.neonBlue }]}
+          onPress={() => setShowAddLead(true)}
+        >
           <Feather name="plus" size={18} color="#000" />
         </TouchableOpacity>
       </View>
 
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 40 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.neonBlue} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.neonBlue} />
+        }
         showsVerticalScrollIndicator={false}
       >
         {/* Stats */}
@@ -205,8 +253,11 @@ export default function LeadsScreen() {
               { label: "Today", value: stats.today, color: colors.neonCyan },
               { label: "Replied", value: stats.replied, color: "#25D366" },
               { label: "Pending", value: stats.unreplied, color: colors.accent },
-            ].map(s => (
-              <View key={s.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: `${s.color}40`, flex: 1 }]}>
+            ].map((s) => (
+              <View
+                key={s.label}
+                style={[styles.statCard, { backgroundColor: colors.card, borderColor: `${s.color}40`, flex: 1 }]}
+              >
                 <Text style={[styles.statVal, { color: s.color }]}>{s.value}</Text>
                 <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
               </View>
@@ -218,13 +269,32 @@ export default function LeadsScreen() {
         {stats?.bySource && Object.keys(stats.bySource).length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
             {Object.entries(stats.bySource).map(([src, count]) => (
-              <View key={src} style={[styles.srcBadge, { backgroundColor: `${SOURCE_COLORS[src] ?? colors.neonBlue}20`, borderColor: `${SOURCE_COLORS[src] ?? colors.neonBlue}50` }]}>
+              <View
+                key={src}
+                style={[
+                  styles.srcBadge,
+                  {
+                    backgroundColor: `${SOURCE_COLORS[src] ?? colors.neonBlue}20`,
+                    borderColor: `${SOURCE_COLORS[src] ?? colors.neonBlue}50`,
+                  },
+                ]}
+              >
                 <View style={[styles.srcDot, { backgroundColor: SOURCE_COLORS[src] ?? colors.neonBlue }]} />
-                <Text style={[styles.srcText, { color: SOURCE_COLORS[src] ?? colors.neonBlue }]}>{src}: {count}</Text>
+                <Text style={[styles.srcText, { color: SOURCE_COLORS[src] ?? colors.neonBlue }]}>
+                  {src}: {count}
+                </Text>
               </View>
             ))}
           </ScrollView>
         )}
+
+        {/* Firebase Badge */}
+        <View style={[styles.fbBadge, { backgroundColor: "#FF6B0010", borderColor: "#FF6B0040" }]}>
+          <Feather name="database" size={13} color="#FF6B00" />
+          <Text style={[styles.fbText, { color: "#FF6B00" }]}>
+            Firebase Firestore — Real-time sync active ✓
+          </Text>
+        </View>
 
         {/* Action Buttons */}
         <View style={styles.actionsRow}>
@@ -233,38 +303,47 @@ export default function LeadsScreen() {
             onPress={() => setShowImSetup(true)}
           >
             <Feather name="download" size={16} color="#fff" />
-            <Text style={styles.actionBtnText}>IndiaMART Leads</Text>
+            <Text style={styles.actionBtnText}>IndiaMART</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: autoReplying ? `${colors.neonCyan}60` : colors.neonCyan, flex: 1 }]}
+            style={[
+              styles.actionBtn,
+              { backgroundColor: autoReplying ? `${colors.neonCyan}60` : colors.neonCyan, flex: 1 },
+            ]}
             onPress={autoReplyAll}
-            disabled={autoReplying || !serverUrl}
+            disabled={autoReplying}
           >
-            {autoReplying ? <ActivityIndicator size="small" color="#000" /> : <Feather name="zap" size={16} color="#000" />}
+            {autoReplying ? (
+              <ActivityIndicator size="small" color="#000" />
+            ) : (
+              <Feather name="zap" size={16} color="#000" />
+            )}
             <Text style={[styles.actionBtnText, { color: "#000" }]}>
               {autoReplying ? "Replying..." : "Auto Reply All"}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* No server warning */}
-        {!serverUrl && (
-          <View style={[styles.warnBox, { backgroundColor: `${colors.accent}10`, borderColor: `${colors.accent}40` }]}>
-            <Feather name="alert-triangle" size={16} color={colors.accent} />
-            <Text style={[styles.warnText, { color: colors.accent }]}>Admin Panel mein Server URL set karo pehle</Text>
-          </View>
-        )}
-
         {/* Tab filter */}
         <View style={[styles.tabBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {(["all", "unreplied", "replied"] as const).map(t => (
+          {(["all", "unreplied", "replied"] as const).map((t) => (
             <TouchableOpacity
               key={t}
-              style={[styles.tabBtn, { backgroundColor: activeTab === t ? `${colors.neonBlue}20` : "transparent", borderBottomColor: activeTab === t ? colors.neonBlue : "transparent" }]}
+              style={[
+                styles.tabBtn,
+                {
+                  backgroundColor: activeTab === t ? `${colors.neonBlue}20` : "transparent",
+                  borderBottomColor: activeTab === t ? colors.neonBlue : "transparent",
+                },
+              ]}
               onPress={() => setActiveTab(t)}
             >
               <Text style={[styles.tabLabel, { color: activeTab === t ? colors.neonBlue : colors.mutedForeground }]}>
-                {t === "all" ? `All (${leads.length})` : t === "unreplied" ? `Pending (${leads.filter(l => !l.replied).length})` : `Done (${leads.filter(l => l.replied).length})`}
+                {t === "all"
+                  ? `All (${leads.length})`
+                  : t === "unreplied"
+                  ? `Pending (${leads.filter((l) => !l.replied).length})`
+                  : `Done (${leads.filter((l) => l.replied).length})`}
               </Text>
             </TouchableOpacity>
           ))}
@@ -276,15 +355,27 @@ export default function LeadsScreen() {
             <Feather name="inbox" size={44} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Koi lead nahi abhi</Text>
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              {"IndiaMART se fetch karo ya manually add karo\nBot automatically reply karega Lily AI se"}
+              {"IndiaMART se fetch karo ya manually add karo\nBot automatically Lily AI se reply karega"}
             </Text>
           </View>
         ) : (
-          filteredLeads.map(lead => (
-            <View key={lead.id} style={[styles.leadCard, { backgroundColor: colors.card, borderColor: lead.replied ? `${colors.neonCyan}30` : `${colors.accent}30`, borderLeftWidth: 3, borderLeftColor: SOURCE_COLORS[lead.source] ?? colors.neonBlue }]}>
+          filteredLeads.map((lead) => (
+            <View
+              key={lead.id}
+              style={[
+                styles.leadCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: lead.replied ? `${colors.neonCyan}30` : `${colors.accent}30`,
+                  borderLeftColor: SOURCE_COLORS[lead.source] ?? colors.neonBlue,
+                },
+              ]}
+            >
               <View style={styles.leadTop}>
                 <View style={[styles.srcTag, { backgroundColor: `${SOURCE_COLORS[lead.source] ?? colors.neonBlue}20` }]}>
-                  <Text style={[styles.srcTagText, { color: SOURCE_COLORS[lead.source] ?? colors.neonBlue }]}>{lead.source}</Text>
+                  <Text style={[styles.srcTagText, { color: SOURCE_COLORS[lead.source] ?? colors.neonBlue }]}>
+                    {lead.source}
+                  </Text>
                 </View>
                 <Text style={[styles.leadTime, { color: colors.mutedForeground }]}>{fmtTime(lead.timestamp)}</Text>
                 {lead.replied && (
@@ -294,19 +385,29 @@ export default function LeadsScreen() {
                   </View>
                 )}
               </View>
-
               <Text style={[styles.leadName, { color: colors.foreground }]}>{lead.name}</Text>
-              {lead.location && <Text style={[styles.leadMeta, { color: colors.mutedForeground }]}>📍 {lead.location}</Text>}
-              {lead.product && <Text style={[styles.leadMeta, { color: colors.neonBlue }]}>🔧 {lead.product}</Text>}
-              <Text style={[styles.leadMsg, { color: colors.mutedForeground }]} numberOfLines={2}>{lead.message}</Text>
-
-              {lead.replied && lead.replyText && (
-                <View style={[styles.replyPreview, { backgroundColor: `${colors.neonBlue}08`, borderColor: `${colors.neonBlue}20` }]}>
+              {!!lead.location && (
+                <Text style={[styles.leadMeta, { color: colors.mutedForeground }]}>📍 {lead.location}</Text>
+              )}
+              {!!lead.product && (
+                <Text style={[styles.leadMeta, { color: colors.neonBlue }]}>🔧 {lead.product}</Text>
+              )}
+              <Text style={[styles.leadMsg, { color: colors.mutedForeground }]} numberOfLines={2}>
+                {lead.message}
+              </Text>
+              {lead.replied && !!lead.replyText && (
+                <View
+                  style={[
+                    styles.replyPreview,
+                    { backgroundColor: `${colors.neonBlue}08`, borderColor: `${colors.neonBlue}20` },
+                  ]}
+                >
                   <Text style={[styles.replyLabel, { color: colors.neonBlue }]}>LILY REPLIED:</Text>
-                  <Text style={[styles.replyText, { color: colors.foreground }]} numberOfLines={2}>{lead.replyText}</Text>
+                  <Text style={[styles.replyText, { color: colors.foreground }]} numberOfLines={2}>
+                    {lead.replyText}
+                  </Text>
                 </View>
               )}
-
               {!lead.replied && (
                 <TouchableOpacity
                   style={[styles.replyBtn, { backgroundColor: colors.neonCyan }]}
@@ -330,7 +431,9 @@ export default function LeadsScreen() {
                 <Feather name="download-cloud" size={22} color="#1B75BB" />
               </View>
               <Text style={[styles.modalTitle, { color: colors.foreground }]}>IndiaMART Lead Fetch</Text>
-              <TouchableOpacity onPress={() => setShowImSetup(false)}><Feather name="x" size={20} color={colors.mutedForeground} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowImSetup(false)}>
+                <Feather name="x" size={20} color={colors.mutedForeground} />
+              </TouchableOpacity>
             </View>
             <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>
               IndiaMART Seller Panel → My Account → API → Lead Manager API se GLID aur Key milega
@@ -341,14 +444,28 @@ export default function LeadsScreen() {
             ].map((f, i) => (
               <View key={i} style={[styles.inputWrap, { backgroundColor: colors.background, borderColor: colors.border }]}>
                 <Feather name="key" size={16} color="#1B75BB" />
-                <TextInput style={[styles.input, { color: colors.foreground }]} placeholder={f.ph} placeholderTextColor={colors.mutedForeground} value={f.val} onChangeText={f.set} autoCapitalize="none" />
+                <TextInput
+                  style={[styles.input, { color: colors.foreground }]}
+                  placeholder={f.ph}
+                  placeholderTextColor={colors.mutedForeground}
+                  value={f.val}
+                  onChangeText={f.set}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
               </View>
             ))}
             <View style={[styles.infoBox, { backgroundColor: "#1B75BB10", borderColor: "#1B75BB30" }]}>
               <Feather name="info" size={14} color="#1B75BB" />
-              <Text style={[styles.infoText, { color: "#1B75BB99" }]}>Last 24 ghante ke leads fetch honge. Bot automatically Lily se reply karega.</Text>
+              <Text style={[styles.infoText, { color: "#1B75BB99" }]}>
+                Last 24 ghante ke leads fetch honge. Firebase mein save honge. Bot automatically Lily se reply karega. Server ki zaroorat nahi!
+              </Text>
             </View>
-            <TouchableOpacity style={[styles.mainBtn, { backgroundColor: loading ? "#1B75BB80" : "#1B75BB" }]} onPress={fetchIndiaMART} disabled={loading}>
+            <TouchableOpacity
+              style={[styles.mainBtn, { backgroundColor: loading ? "#1B75BB80" : "#1B75BB" }]}
+              onPress={fetchIndiaMART}
+              disabled={loading}
+            >
               {loading ? <ActivityIndicator color="#fff" /> : <Feather name="download" size={18} color="#fff" />}
               <Text style={styles.mainBtnText}>{loading ? "Fetching..." : "Leads Fetch Karo"}</Text>
             </TouchableOpacity>
@@ -363,21 +480,32 @@ export default function LeadsScreen() {
             <View style={styles.modalHeader}>
               <Feather name="user-plus" size={22} color={colors.neonBlue} />
               <Text style={[styles.modalTitle, { color: colors.foreground }]}>Manual Lead Add</Text>
-              <TouchableOpacity onPress={() => setShowAddLead(false)}><Feather name="x" size={20} color={colors.mutedForeground} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowAddLead(false)}>
+                <Feather name="x" size={20} color={colors.mutedForeground} />
+              </TouchableOpacity>
             </View>
             {[
               { ph: "Client Name *", key: "name", icon: "user" as const },
-              { ph: "Phone Number * (91XXXXXXXXXX)", key: "phone", icon: "phone" as const },
+              { ph: "Phone * (91XXXXXXXXXX)", key: "phone", icon: "phone" as const },
               { ph: "Product Interest (e.g. EOT Crane 50T)", key: "product", icon: "tool" as const },
               { ph: "Location (e.g. Mumbai)", key: "location", icon: "map-pin" as const },
               { ph: "Message / Requirement", key: "message", icon: "message-circle" as const },
-            ].map(f => (
+            ].map((f) => (
               <View key={f.key} style={[styles.inputWrap, { backgroundColor: colors.background, borderColor: colors.border }]}>
                 <Feather name={f.icon} size={16} color={colors.neonBlue} />
-                <TextInput style={[styles.input, { color: colors.foreground }]} placeholder={f.ph} placeholderTextColor={colors.mutedForeground} value={(newLead as any)[f.key]} onChangeText={v => setNewLead(prev => ({ ...prev, [f.key]: v }))} />
+                <TextInput
+                  style={[styles.input, { color: colors.foreground }]}
+                  placeholder={f.ph}
+                  placeholderTextColor={colors.mutedForeground}
+                  value={(newLead as any)[f.key]}
+                  onChangeText={(v) => setNewLead((prev) => ({ ...prev, [f.key]: v }))}
+                />
               </View>
             ))}
-            <TouchableOpacity style={[styles.mainBtn, { backgroundColor: colors.neonBlue }]} onPress={addManualLead}>
+            <TouchableOpacity
+              style={[styles.mainBtn, { backgroundColor: colors.neonBlue }]}
+              onPress={addManualLead}
+            >
               <Feather name="plus" size={18} color="#000" />
               <Text style={[styles.mainBtnText, { color: "#000" }]}>Lead Add Karo</Text>
             </TouchableOpacity>
@@ -401,18 +529,18 @@ const styles = StyleSheet.create({
   srcBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
   srcDot: { width: 7, height: 7, borderRadius: 4 },
   srcText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  fbBadge: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10, borderWidth: 1 },
+  fbText: { fontSize: 11, fontFamily: "Inter_500Medium" },
   actionsRow: { flexDirection: "row", gap: 10 },
   actionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 13, borderRadius: 14, elevation: 4 },
   actionBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
-  warnBox: { flexDirection: "row", gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, alignItems: "center" },
-  warnText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular" },
   tabBar: { flexDirection: "row", borderRadius: 12, borderWidth: 1, overflow: "hidden" },
   tabBtn: { flex: 1, alignItems: "center", paddingVertical: 10, borderBottomWidth: 2 },
   tabLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   emptyBox: { alignItems: "center", gap: 10, paddingTop: 40 },
   emptyTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
   emptyText: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 19 },
-  leadCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 8 },
+  leadCard: { borderRadius: 14, borderWidth: 1, borderLeftWidth: 3, padding: 14, gap: 8 },
   leadTop: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   srcTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   srcTagText: { fontSize: 10, fontFamily: "Inter_700Bold" },

@@ -1,56 +1,53 @@
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-import { Share } from "react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+  ActivityIndicator, FlatList, Modal, Platform, ScrollView,
+  Share, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
-import { sendToLily, resetChat, loadChatHistory, getCurrentModel } from "@/lib/gemini";
 import { saveChatMessage } from "@/lib/firebaseService";
 import { speakWithLily, stopSpeaking } from "@/lib/elevenlabs";
-import { sendWAMsg } from "@/lib/waWebClient";
-import { useApp } from "@/context/AppContext";
+import { askAI, AIModel, ALL_AI_MODELS, resetAllAIChats, getAvailableModels, AIModelInfo } from "@/lib/multiAI";
 
-interface Msg { id: string; text: string; isLily: boolean; }
+interface Msg { id: string; text: string; isLily: boolean; model?: AIModel; }
 
 const WELCOME: Msg = {
   id: "0",
-  text: "Namaskar! Main Lily hoon 🙏 MA Engineering ki AI Senior Manager.\n\nMain powered hoon Gemini Pro se — engineering, quotes, negotiations, technical specs — sab kuch handle karti hoon.\n\nKya poochhna hai aapko?",
+  text: "[ TITAN NEURAL LINK ESTABLISHED ]\n\nNamaskar! Main TITAN hoon ⚡ — MA Engineering ka Multi-AI Brain.\n\nMujhse poochho: quotes, negotiations, crane specs, leads, HR, aur duniya ki koi bhi cheez.\n\nKaunsa AI use karna hai? Model select karo upar se 👆",
   isLily: true,
+  model: "titan",
 };
 
 const QUICK_PHRASES = [
-  "EOT Crane 50T ka quote chahiye",
-  "Chimney 60 metre height — rate kya hai?",
-  "AMC contract ke baare mein batao",
-  "Payment terms kya hain?",
-  "Suhan sir se milna hai",
-  "IS standard kaunsi follow karte ho?",
-  "Urgent delivery ho sakti hai?",
-  "Catalog bhejo",
+  "EOT Crane 50T quote chahiye",
+  "Chimney 80m rate batao",
+  "New lead reply draft karo",
+  "AMC contract terms batao",
+  "Competitor analysis karo",
+  "Payment terms explain karo",
+  "IS standards kaunsi follow karte ho?",
+  "Urgent delivery possible hai?",
 ];
 
-const MODEL_LABELS: Record<string, string> = {
-  flash: "Gemini Flash (Fast)",
-  pro: "Gemini Pro (Smart)",
-  flash2: "Gemini 2.0 (Latest)",
+const PROVIDER_COLORS: Record<string, string> = {
+  "Google": "#8B5CF6",
+  "OpenAI": "#74AA9C",
+  "Anthropic": "#D97757",
+  "Groq": "#F97316",
+  "DeepSeek": "#4F46E5",
+  "Mistral": "#FF7000",
+  "Cohere": "#39C5BB",
+  "Perplexity": "#20B2AA",
+  "Multi-AI": "#00B4FF",
 };
 
 export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { serverUrl, waToken } = useApp();
   const [messages, setMessages] = useState<Msg[]>([WELCOME]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -58,25 +55,29 @@ export default function ChatScreen() {
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [autoSpeak, setAutoSpeak] = useState(false);
   const [showPhrases, setShowPhrases] = useState(true);
-  const [currentModel, setCurrentModel] = useState("pro");
-  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [activeModel, setActiveModel] = useState<AIModel>("titan");
+  const [availableModels, setAvailableModels] = useState<AIModelInfo[]>([]);
+  const [scanLine, setScanLine] = useState(0);
   const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    loadHistory();
-    getCurrentModel().then(setCurrentModel);
+    getAvailableModels().then(setAvailableModels);
+    AsyncStorage.getItem("titan_active_model").then(m => {
+      if (m) setActiveModel(m as AIModel);
+    });
+    // Hacker scanline animation
+    const t = setInterval(() => setScanLine(p => (p + 1) % 100), 50);
+    return () => clearInterval(t);
   }, []);
 
-  async function loadHistory() {
-    try {
-      const hist = await loadChatHistory();
-      if (hist.length > 0) {
-        setMessages([WELCOME, ...hist]);
-        setShowPhrases(false);
-      }
-    } catch {}
-    setHistoryLoaded(true);
+  const activeModelInfo = ALL_AI_MODELS.find(m => m.id === activeModel) ?? ALL_AI_MODELS[0];
+
+  async function selectModel(model: AIModel) {
+    setActiveModel(model);
+    await AsyncStorage.setItem("titan_active_model", model);
+    setShowModelPicker(false);
+    Haptics.selectionAsync();
   }
 
   async function send(text?: string) {
@@ -89,9 +90,9 @@ export default function ChatScreen() {
     setMessages(prev => [...prev, userMsg]);
     setLoading(true);
     saveChatMessage(msg, false).catch(() => {});
-    const reply = await sendToLily(msg);
-    const lilyId = Date.now().toString() + "l";
-    const lilyMsg: Msg = { id: lilyId, text: reply, isLily: true };
+    const reply = await askAI(msg, activeModel);
+    const lilyId = `${Date.now()}l`;
+    const lilyMsg: Msg = { id: lilyId, text: reply, isLily: true, model: activeModel };
     setMessages(prev => [...prev, lilyMsg]);
     saveChatMessage(reply, true).catch(() => {});
     setLoading(false);
@@ -113,21 +114,8 @@ export default function ChatScreen() {
     setSpeaking(false); setSpeakingId(null);
   }
 
-  async function shareMsg(text: string) {
-    Haptics.selectionAsync();
-    await Share.share({ message: `Lily AI (MA Engineering):\n\n${text}`, title: "Lily ka jawab" });
-  }
-
-  async function sendToWA(text: string) {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (!serverUrl) { alert("Admin Panel mein Server URL set karo"); return; }
-    const result = await sendWAMsg("917895643069", `Lily AI:\n${text}`);
-    if (result.success) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    else alert(result.error ?? "WhatsApp send failed");
-  }
-
   function clearChat() {
-    resetChat();
+    resetAllAIChats();
     setMessages([WELCOME]);
     setShowPhrases(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -135,63 +123,44 @@ export default function ChatScreen() {
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+  const modelColor = PROVIDER_COLORS[activeModelInfo.provider] ?? colors.neonBlue;
 
   return (
-    <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.background }]} behavior="padding" keyboardVerticalOffset={0}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad + 10, backgroundColor: colors.background, borderBottomColor: `${colors.neonBlue}20` }]}>
-        <View style={[styles.avatarWrap, { backgroundColor: `${colors.neonBlue}20` }]}>
-          <Feather name="cpu" size={18} color={colors.neonBlue} />
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.background }]} behavior="padding">
+      {/* Hacker Header */}
+      <View style={[styles.header, { paddingTop: topPad + 10, backgroundColor: colors.background, borderBottomColor: `${modelColor}30` }]}>
+        <View style={[styles.avatarWrap, { backgroundColor: `${modelColor}20`, borderColor: `${modelColor}50`, borderWidth: 1 }]}>
+          <Text style={{ fontSize: 16 }}>{activeModelInfo.icon}</Text>
         </View>
         <View style={{ marginLeft: 10, flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Lily AI</Text>
-          <TouchableOpacity onPress={() => setShowModelPicker(!showModelPicker)}>
-            <Text style={[styles.headerSub, { color: colors.neonCyan }]}>
-              {MODEL_LABELS[currentModel] ?? "Gemini Pro"} ▾
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>TITAN AI</Text>
+            <View style={[styles.onlineDot, { backgroundColor: "#00FF41" }]} />
+            <Text style={[styles.onlineText, { color: "#00FF41" }]}>ONLINE</Text>
+          </View>
+          <TouchableOpacity onPress={() => setShowModelPicker(true)} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Text style={[styles.modelTag, { color: modelColor, backgroundColor: `${modelColor}15` }]}>
+              {activeModelInfo.icon} {activeModelInfo.name}
             </Text>
+            <Feather name="chevron-down" size={11} color={modelColor} />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={[styles.hBtn, { backgroundColor: autoSpeak ? `${colors.neonCyan}20` : `${colors.border}40`, borderColor: autoSpeak ? colors.neonCyan : colors.border }]} onPress={() => { setAutoSpeak(!autoSpeak); Haptics.selectionAsync(); }}>
+        <TouchableOpacity style={[styles.hBtn, { backgroundColor: autoSpeak ? `${colors.neonCyan}20` : "transparent", borderColor: autoSpeak ? colors.neonCyan : `${colors.border}60` }]}
+          onPress={() => { setAutoSpeak(!autoSpeak); Haptics.selectionAsync(); }}>
           <Feather name={autoSpeak ? "volume-2" : "volume-x"} size={14} color={autoSpeak ? colors.neonCyan : colors.mutedForeground} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.hBtn, { borderColor: colors.border }]} onPress={clearChat}>
+        <TouchableOpacity style={[styles.hBtn, { borderColor: `${colors.border}60` }]} onPress={clearChat}>
           <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
 
-      {/* Model Picker */}
-      {showModelPicker && (
-        <View style={[styles.modelPicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {Object.entries(MODEL_LABELS).map(([key, label]) => (
-            <TouchableOpacity key={key} style={[styles.modelOption, { backgroundColor: currentModel === key ? `${colors.neonBlue}20` : "transparent" }]}
-              onPress={async () => {
-                const { setModel } = await import("@/lib/gemini");
-                await setModel(key);
-                setCurrentModel(key);
-                setShowModelPicker(false);
-                Haptics.selectionAsync();
-              }}>
-              <Feather name="cpu" size={14} color={currentModel === key ? colors.neonBlue : colors.mutedForeground} />
-              <Text style={[styles.modelLabel, { color: currentModel === key ? colors.neonBlue : colors.foreground }]}>{label}</Text>
-              {currentModel === key && <Feather name="check" size={14} color={colors.neonBlue} />}
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {/* Auto-speak bar */}
-      {autoSpeak && (
-        <View style={[styles.autoBar, { backgroundColor: `${colors.neonCyan}10`, borderBottomColor: `${colors.neonCyan}20` }]}>
-          <Feather name="volume-2" size={12} color={colors.neonCyan} />
-          <Text style={[styles.autoBarText, { color: colors.neonCyan }]}>Auto-voice ON — Lily automatically bolegi</Text>
-        </View>
-      )}
-
       {/* Quick phrases */}
       {showPhrases && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.phrasesScroll, { borderBottomColor: `${colors.neonBlue}10` }]} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          style={[styles.phrasesScroll, { borderBottomColor: `${colors.neonBlue}10` }]}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 8 }}>
           {QUICK_PHRASES.map(p => (
-            <TouchableOpacity key={p} style={[styles.phraseChip, { backgroundColor: `${colors.neonBlue}10`, borderColor: `${colors.neonBlue}30` }]} onPress={() => send(p)}>
+            <TouchableOpacity key={p} style={[styles.phraseChip, { backgroundColor: `${colors.neonBlue}08`, borderColor: `${colors.neonBlue}25` }]} onPress={() => send(p)}>
               <Text style={[styles.phraseText, { color: colors.neonBlue }]}>{p}</Text>
             </TouchableOpacity>
           ))}
@@ -205,57 +174,113 @@ export default function ChatScreen() {
         keyExtractor={m => m.id}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 8 }}
         showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <View style={[styles.msgRow, { justifyContent: item.isLily ? "flex-start" : "flex-end" }]}>
-            <View style={[styles.bubble, { backgroundColor: item.isLily ? `${colors.neonBlue}12` : `${colors.accent}12`, borderColor: item.isLily ? `${colors.neonBlue}35` : `${colors.accent}35`, maxWidth: "85%" }]}>
-              <Text style={[styles.msgText, { color: colors.foreground }]}>{item.text}</Text>
-              {item.isLily && (
-                <View style={styles.msgActions}>
-                  <TouchableOpacity style={[styles.actionChip, { borderColor: `${colors.neonCyan}40` }]} onPress={() => handleSpeak(item)}>
-                    <Feather name={speakingId === item.id && speaking ? "volume-x" : "volume-2"} size={11} color={speakingId === item.id && speaking ? colors.accent : colors.neonCyan} />
-                    <Text style={[styles.actionChipText, { color: speakingId === item.id && speaking ? colors.accent : colors.neonCyan }]}>
-                      {speakingId === item.id && speaking ? "Rok" : "Suno"}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.actionChip, { borderColor: `${colors.mutedForeground}30` }]} onPress={() => shareMsg(item.text)}>
-                    <Feather name="share-2" size={11} color={colors.mutedForeground} />
-                    <Text style={[styles.actionChipText, { color: colors.mutedForeground }]}>Share</Text>
-                  </TouchableOpacity>
-                  {(serverUrl || waToken) && (
-                    <TouchableOpacity style={[styles.actionChip, { borderColor: "#25D36640" }]} onPress={() => sendToWA(item.text)}>
-                      <Feather name="message-circle" size={11} color="#25D366" />
-                      <Text style={[styles.actionChipText, { color: "#25D366" }]}>WA</Text>
+        renderItem={({ item }) => {
+          const mInfo = item.model ? ALL_AI_MODELS.find(m => m.id === item.model) : null;
+          const mColor = mInfo ? (PROVIDER_COLORS[mInfo.provider] ?? colors.neonBlue) : colors.neonBlue;
+          return (
+            <View style={[styles.msgRow, { justifyContent: item.isLily ? "flex-start" : "flex-end" }]}>
+              <View style={[styles.bubble, {
+                backgroundColor: item.isLily ? `${mColor}0D` : `${colors.accent}12`,
+                borderColor: item.isLily ? `${mColor}30` : `${colors.accent}30`,
+                maxWidth: "87%",
+              }]}>
+                {item.isLily && mInfo && (
+                  <View style={[styles.modelBadge, { backgroundColor: `${mColor}15` }]}>
+                    <Text style={{ fontSize: 10 }}>{mInfo.icon}</Text>
+                    <Text style={[styles.modelBadgeText, { color: mColor }]}>{mInfo.name}</Text>
+                  </View>
+                )}
+                <Text style={[styles.msgText, { color: colors.foreground }]}>{item.text}</Text>
+                {item.isLily && (
+                  <View style={styles.msgActions}>
+                    <TouchableOpacity style={[styles.actionChip, { borderColor: `${colors.neonCyan}40` }]} onPress={() => handleSpeak(item)}>
+                      <Feather name={speakingId === item.id && speaking ? "volume-x" : "volume-2"} size={11} color={speakingId === item.id && speaking ? colors.accent : colors.neonCyan} />
+                      <Text style={[styles.actionChipText, { color: colors.neonCyan }]}>{speakingId === item.id && speaking ? "Rok" : "Suno"}</Text>
                     </TouchableOpacity>
-                  )}
-                </View>
-              )}
+                    <TouchableOpacity style={[styles.actionChip, { borderColor: `${colors.mutedForeground}30` }]}
+                      onPress={() => Share.share({ message: `TITAN AI (MA Engineering):\n\n${item.text}` })}>
+                      <Feather name="share-2" size={11} color={colors.mutedForeground} />
+                      <Text style={[styles.actionChipText, { color: colors.mutedForeground }]}>Share</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
             </View>
-          </View>
-        )}
+          );
+        }}
         ListFooterComponent={loading ? (
           <View style={styles.typing}>
-            <ActivityIndicator size="small" color={colors.neonBlue} />
-            <Text style={[styles.typingText, { color: colors.mutedForeground }]}>  Lily soch rahi hai...</Text>
+            <ActivityIndicator size="small" color={modelColor} />
+            <Text style={[styles.typingText, { color: modelColor }]}>  {activeModelInfo.name} processing...</Text>
           </View>
         ) : null}
       />
 
       {/* Input */}
-      <View style={[styles.inputBar, { backgroundColor: colors.card, borderTopColor: `${colors.neonBlue}20`, paddingBottom: botPad + 8 }]}>
+      <View style={[styles.inputBar, { backgroundColor: colors.card, borderTopColor: `${modelColor}20`, paddingBottom: botPad + 8 }]}>
         <TextInput
-          style={[styles.input, { backgroundColor: `${colors.neonBlue}08`, color: colors.foreground, borderColor: `${colors.neonBlue}20` }]}
-          placeholder="Lily se poochho kuch bhi..."
+          style={[styles.input, { backgroundColor: `${modelColor}08`, color: colors.foreground, borderColor: `${modelColor}20` }]}
+          placeholder={`${activeModelInfo.icon} ${activeModelInfo.name} se poochho...`}
           placeholderTextColor={colors.mutedForeground}
-          value={input}
-          onChangeText={setInput}
-          onSubmitEditing={() => send()}
-          multiline
-          returnKeyType="send"
+          value={input} onChangeText={setInput}
+          onSubmitEditing={() => send()} multiline returnKeyType="send"
         />
-        <TouchableOpacity style={[styles.sendBtn, { backgroundColor: loading ? `${colors.neonBlue}50` : colors.neonBlue }]} onPress={() => send()} disabled={loading} activeOpacity={0.8}>
+        <TouchableOpacity style={[styles.sendBtn, { backgroundColor: loading ? `${modelColor}50` : modelColor, shadowColor: modelColor }]}
+          onPress={() => send()} disabled={loading} activeOpacity={0.8}>
           <Feather name="send" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
+
+      {/* Model Picker Modal */}
+      <Modal visible={showModelPicker} transparent animationType="slide" onRequestClose={() => setShowModelPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.background, borderColor: `${colors.neonBlue}30` }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.neonBlue }]}>⚡ AI MODEL SELECT</Text>
+              <TouchableOpacity onPress={() => setShowModelPicker(false)}>
+                <Feather name="x" size={20} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>
+              {availableModels.length} models available • Keys Admin Panel mein set karo
+            </Text>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
+              {ALL_AI_MODELS.map(m => {
+                const isAvailable = availableModels.some(am => am.id === m.id);
+                const mColor = PROVIDER_COLORS[m.provider] ?? colors.neonBlue;
+                const isActive = activeModel === m.id;
+                return (
+                  <TouchableOpacity key={m.id}
+                    style={[styles.modelOption, { backgroundColor: isActive ? `${mColor}15` : "transparent", borderColor: isActive ? `${mColor}40` : "transparent", borderWidth: 1, borderRadius: 12, marginBottom: 6 }]}
+                    onPress={() => isAvailable ? selectModel(m.id) : null}
+                    activeOpacity={isAvailable ? 0.7 : 1}>
+                    <View style={[styles.modelIconWrap, { backgroundColor: `${mColor}20` }]}>
+                      <Text style={{ fontSize: 18 }}>{m.icon}</Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={[styles.modelName, { color: isAvailable ? colors.foreground : colors.mutedForeground }]}>{m.name}</Text>
+                        {m.free && <View style={[styles.freeBadge, { backgroundColor: "#00FF4115" }]}><Text style={[styles.freeText, { color: "#00FF41" }]}>FREE</Text></View>}
+                        <View style={[styles.speedBadge, { backgroundColor: m.speed === "fast" ? "#00FF4110" : m.speed === "medium" ? "#FFB90010" : "#FF444410" }]}>
+                          <Text style={[styles.speedText, { color: m.speed === "fast" ? "#00FF41" : m.speed === "medium" ? "#FFB900" : "#FF4444" }]}>
+                            {m.speed === "fast" ? "⚡ FAST" : m.speed === "medium" ? "◆ MED" : "● DEEP"}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.modelDesc, { color: isAvailable ? colors.mutedForeground : `${colors.mutedForeground}50` }]}>{m.provider} • {m.desc}</Text>
+                      {!isAvailable && m.id !== "titan" && (
+                        <Text style={[styles.keyHint, { color: `${colors.accent}70` }]}>🔑 Admin Panel → {m.apiKeyField.replace("_api_key", "").toUpperCase()} key set karo</Text>
+                      )}
+                    </View>
+                    {isActive && <Feather name="check-circle" size={18} color={mColor} />}
+                    {!isAvailable && <Feather name="lock" size={15} color={`${colors.mutedForeground}50`} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -263,27 +288,40 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, gap: 6 },
-  avatarWrap: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  headerSub: { fontSize: 10, fontFamily: "Inter_500Medium", marginTop: 1 },
+  avatarWrap: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 15, fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  onlineDot: { width: 6, height: 6, borderRadius: 3 },
+  onlineText: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  modelTag: { fontSize: 10, fontFamily: "Inter_700Bold", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: "hidden" },
   hBtn: { width: 32, height: 32, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  modelPicker: { borderRadius: 12, borderWidth: 1, margin: 12, overflow: "hidden" },
-  modelOption: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12 },
-  modelLabel: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
-  autoBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 6, borderBottomWidth: 1 },
-  autoBarText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   phrasesScroll: { flexGrow: 0, borderBottomWidth: 1 },
   phraseChip: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 7 },
   phraseText: { fontSize: 11, fontFamily: "Inter_500Medium" },
   msgRow: { flexDirection: "row" },
-  bubble: { padding: 13, borderRadius: 18, borderWidth: 1 },
+  bubble: { padding: 13, borderRadius: 18, borderWidth: 1, gap: 6 },
+  modelBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  modelBadgeText: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
   msgText: { fontSize: 13.5, fontFamily: "Inter_400Regular", lineHeight: 21 },
-  msgActions: { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
+  msgActions: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   actionChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 20, borderWidth: 1 },
   actionChipText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  typing: { flexDirection: "row", alignItems: "center", paddingLeft: 4, marginTop: 4 },
-  typingText: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  typing: { flexDirection: "row", alignItems: "center", paddingLeft: 4, marginTop: 4, paddingBottom: 8 },
+  typingText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   inputBar: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, gap: 10 },
   input: { flex: 1, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, fontSize: 14, fontFamily: "Inter_400Regular", borderWidth: 1, maxHeight: 100 },
-  sendBtn: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", shadowColor: "#00B4FF", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 12, elevation: 8 },
+  sendBtn: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 12, elevation: 8 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "flex-end" },
+  modalCard: { padding: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1 },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  modalTitle: { fontSize: 14, fontFamily: "Inter_700Bold", letterSpacing: 2 },
+  modalSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginBottom: 16 },
+  modelOption: { flexDirection: "row", alignItems: "center", padding: 12 },
+  modelIconWrap: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  modelName: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  modelDesc: { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 2 },
+  keyHint: { fontSize: 9, fontFamily: "Inter_400Regular", marginTop: 2 },
+  freeBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  freeText: { fontSize: 8, fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  speedBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  speedText: { fontSize: 8, fontFamily: "Inter_700Bold" },
 });
