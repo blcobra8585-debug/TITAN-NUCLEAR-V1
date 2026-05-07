@@ -75,7 +75,7 @@ export default function HistoryScreen() {
   async function sendViaWA(q: Quote) {
     const msg = `🏗️ *MA ENGINEERING — Quote*\n\nClient: *${q.clientName}*\nProject: *${q.projectType}*\nTonnage: ${q.tonnage}T\n\n${q.quoteText}\n\n*Value: ${fmt(q.quotedAmount)}*\n\n*MA Engineering* | Suhan Siddiqui\n📞 +917895643069`;
     const r = await sendWhatsAppMessage("91" + q.clientName.replace(/\D/g, ""), msg);
-    if (r.success) Alert.alert("✅", "WhatsApp pe bhej diya!");
+    if (r) Alert.alert("✅", "WhatsApp pe bhej diya!");
     else Alert.alert("ℹ️", "Settings mein WA Token set karo, tab send hoga.");
   }
 
