@@ -1,11 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
-import { getTotalRevenue, ensureAuth } from "@/lib/firebaseService";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { getTotalRevenue } from "@/lib/firebaseService";
 
 interface AppContextType {
   titanMode: boolean;
@@ -31,7 +26,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     loadSettings();
-    ensureAuth().catch(() => {});
   }, []);
 
   async function loadSettings() {
@@ -43,8 +37,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setWaTokenState(wa ?? "");
     const wb = await AsyncStorage.getItem("waba_id");
     setWabaIdState(wb ?? "");
-    const rev = await getTotalRevenue().catch(() => 0);
-    setTotalRevenue(rev);
+    getTotalRevenue()
+      .then(setTotalRevenue)
+      .catch(() => {});
   }
 
   const setTitanMode = async (val: boolean) => {

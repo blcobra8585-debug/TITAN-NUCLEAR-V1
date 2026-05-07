@@ -11,26 +11,7 @@ import {
   QuerySnapshot,
   DocumentData,
 } from "firebase/firestore";
-import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "./firebase";
-
-let uid = "unknown";
-
-export async function ensureAuth(): Promise<string> {
-  return new Promise((resolve) => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      unsub();
-      if (user) {
-        uid = user.uid;
-        resolve(user.uid);
-      } else {
-        const cred = await signInAnonymously(auth);
-        uid = cred.user.uid;
-        resolve(uid);
-      }
-    });
-  });
-}
+import { db } from "./firebase";
 
 export async function saveQuote(data: {
   clientName: string;
@@ -39,17 +20,14 @@ export async function saveQuote(data: {
   quotedAmount: number;
   quoteText: string;
 }) {
-  await ensureAuth();
   await addDoc(collection(db, "quotes"), {
     ...data,
-    adminId: uid,
     status: "pending",
     timestamp: serverTimestamp(),
   });
 }
 
 export async function getQuotes() {
-  await ensureAuth();
   const snap = await getDocs(
     query(collection(db, "quotes"), orderBy("timestamp", "desc"))
   );
@@ -70,17 +48,14 @@ export async function updateQuoteStatus(docId: string, status: string) {
 }
 
 export async function saveChatMessage(message: string, isLily: boolean) {
-  await ensureAuth();
   await addDoc(collection(db, "chat_history"), {
     message,
     isLily,
-    uid,
     timestamp: serverTimestamp(),
   });
 }
 
 export async function getTotalRevenue(): Promise<number> {
-  await ensureAuth();
   const snap = await getDocs(collection(db, "quotes"));
   let total = 0;
   snap.docs.forEach((d) => {
