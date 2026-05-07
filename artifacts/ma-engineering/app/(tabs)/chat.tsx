@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { sendToLily } from "@/lib/gemini";
 import { saveChatMessage } from "@/lib/firebaseService";
+import { speakWithLily, stopSpeaking } from "@/lib/elevenlabs";
 
 interface Msg {
   id: string;
@@ -35,6 +36,8 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Msg[]>([WELCOME]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
   const listRef = useRef<FlatList>(null);
 
   async function send() {
@@ -47,11 +50,27 @@ export default function ChatScreen() {
     setLoading(true);
     saveChatMessage(text, false).catch(() => {});
     const reply = await sendToLily(text);
-    const lilyMsg: Msg = { id: Date.now().toString() + "l", text: reply, isLily: true };
+    const lilyId = Date.now().toString() + "l";
+    const lilyMsg: Msg = { id: lilyId, text: reply, isLily: true };
     setMessages((prev) => [...prev, lilyMsg]);
     saveChatMessage(reply, true).catch(() => {});
     setLoading(false);
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+  }
+
+  async function handleSpeak(msg: Msg) {
+    if (speakingId === msg.id && speaking) {
+      await stopSpeaking();
+      setSpeaking(false);
+      setSpeakingId(null);
+      return;
+    }
+    setSpeaking(true);
+    setSpeakingId(msg.id);
+    Haptics.selectionAsync();
+    await speakWithLily(msg.text);
+    setSpeaking(false);
+    setSpeakingId(null);
   }
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -70,7 +89,7 @@ export default function ChatScreen() {
         </View>
         <View style={{ marginLeft: 10, flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Lily AI</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>Senior Manager</Text>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>Senior Manager • Gemini Pro</Text>
         </View>
         <View style={[styles.liveBadge, { backgroundColor: `${colors.neonCyan}15`, borderColor: `${colors.neonCyan}40` }]}>
           <Text style={[styles.liveText, { color: colors.neonCyan }]}>LIVE</Text>
@@ -95,6 +114,22 @@ export default function ChatScreen() {
               },
             ]}>
               <Text style={[styles.msgText, { color: colors.foreground }]}>{item.text}</Text>
+              {item.isLily && (
+                <TouchableOpacity
+                  style={[styles.speakBtn, { borderColor: `${colors.neonCyan}40` }]}
+                  onPress={() => handleSpeak(item)}
+                  activeOpacity={0.7}
+                >
+                  <Feather
+                    name={speakingId === item.id && speaking ? "volume-x" : "volume-2"}
+                    size={13}
+                    color={speakingId === item.id && speaking ? colors.accent : colors.neonCyan}
+                  />
+                  <Text style={[styles.speakLabel, { color: speakingId === item.id && speaking ? colors.accent : colors.neonCyan }]}>
+                    {speakingId === item.id && speaking ? "Stop" : "Lily ki awaaz"}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         )}
@@ -144,6 +179,8 @@ const styles = StyleSheet.create({
   msgRow: { flexDirection: "row" },
   bubble: { padding: 13, borderRadius: 18, borderWidth: 1 },
   msgText: { fontSize: 13.5, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  speakBtn: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 20, borderWidth: 1, alignSelf: "flex-start" },
+  speakLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   typing: { flexDirection: "row", alignItems: "center", paddingLeft: 4, marginTop: 4 },
   typingText: { fontSize: 12, fontFamily: "Inter_400Regular" },
   inputBar: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, gap: 10 },
