@@ -4,6 +4,9 @@ import { Audio } from "expo-av";
 const DEFAULT_VOICE_ID = "cgSgspJ2msm6clMCkdW9";
 const BASE_URL = "https://api.elevenlabs.io/v1";
 
+// Track current playing sound so we can stop it
+let _currentSound: Audio.Sound | null = null;
+
 export async function speakWithLily(text: string): Promise<void> {
   try {
     const apiKey = await AsyncStorage.getItem("elevenlabs_api_key").catch(() => null);
@@ -39,9 +42,11 @@ export async function speakWithLily(text: string): Promise<void> {
             { uri: `data:audio/mp3;base64,${base64}` },
             { shouldPlay: true, volume: 1.0 }
           );
+          _currentSound = sound;
           sound.setOnPlaybackStatusUpdate((status) => {
             if (status.isLoaded && status.didJustFinish) {
               sound.unloadAsync().catch(() => {});
+              _currentSound = null;
               resolve();
             }
           });
@@ -54,6 +59,18 @@ export async function speakWithLily(text: string): Promise<void> {
     });
   } catch {
     // silent fail — voice is optional
+  }
+}
+
+export async function stopSpeaking(): Promise<void> {
+  try {
+    if (_currentSound) {
+      await _currentSound.stopAsync();
+      await _currentSound.unloadAsync();
+      _currentSound = null;
+    }
+  } catch {
+    _currentSound = null;
   }
 }
 
