@@ -18,10 +18,12 @@ import { useApp } from "@/context/AppContext";
 export default function AdminScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { geminiKey, setGeminiKey, waToken, setWaToken, wabaId, setWabaId } = useApp();
+  const { geminiKey, setGeminiKey, waToken, setWaToken, wabaId, setWabaId, elevenLabsKey, setElevenLabsKey, serverUrl, setServerUrl } = useApp();
   const [gKey, setGKey] = useState(geminiKey);
   const [waT, setWaT] = useState(waToken);
   const [waba, setWaba] = useState(wabaId);
+  const [elKey, setElKey] = useState(elevenLabsKey);
+  const [sUrl, setSUrl] = useState(serverUrl);
   const [saved, setSaved] = useState(false);
   const [showKeys, setShowKeys] = useState(false);
 
@@ -30,6 +32,8 @@ export default function AdminScreen() {
     await setGeminiKey(gKey.trim());
     await setWaToken(waT.trim());
     await setWabaId(waba.trim());
+    await setElevenLabsKey(elKey.trim());
+    await setServerUrl(sUrl.trim());
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   }
@@ -88,19 +92,52 @@ export default function AdminScreen() {
         </Text>
       </TouchableOpacity>
 
-      {/* Gemini Key */}
+      {/* Gemini Pro Key */}
       <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Feather name="cpu" size={18} color={colors.neonBlue} />
         <TextInput
           style={[styles.textInput, { color: colors.foreground }]}
-          placeholder="Gemini API Key (AIza...)"
+          placeholder="Gemini Pro API Key (AIza...)"
           placeholderTextColor={colors.mutedForeground}
           value={gKey}
           onChangeText={setGKey}
           secureTextEntry={!showKeys}
           autoCapitalize="none"
         />
+        <View style={[styles.keyTag, { backgroundColor: `${colors.neonBlue}15` }]}>
+          <Text style={[styles.keyTagText, { color: colors.neonBlue }]}>PRO</Text>
+        </View>
       </View>
+
+      {/* ElevenLabs Key */}
+      <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Feather name="volume-2" size={18} color={colors.neonCyan} />
+        <TextInput
+          style={[styles.textInput, { color: colors.foreground }]}
+          placeholder="ElevenLabs API Key (Lily voice)"
+          placeholderTextColor={colors.mutedForeground}
+          value={elKey}
+          onChangeText={setElKey}
+          secureTextEntry={!showKeys}
+          autoCapitalize="none"
+        />
+      </View>
+
+      {/* Server URL */}
+      <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Feather name="server" size={18} color={colors.accent} />
+        <TextInput
+          style={[styles.textInput, { color: colors.foreground }]}
+          placeholder="Replit Server URL (https://...replit.app)"
+          placeholderTextColor={colors.mutedForeground}
+          value={sUrl}
+          onChangeText={setSUrl}
+          autoCapitalize="none"
+          keyboardType="url"
+        />
+      </View>
+
+      <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>WHATSAPP BUSINESS API</Text>
 
       {/* WhatsApp Token */}
       <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -133,7 +170,7 @@ export default function AdminScreen() {
       <View style={[styles.infoBox, { backgroundColor: `${colors.neonCyan}08`, borderColor: `${colors.neonCyan}30` }]}>
         <Feather name="info" size={16} color={colors.neonCyan} style={{ marginTop: 2 }} />
         <Text style={[styles.infoText, { color: `${colors.neonCyan}CC` }]}>
-          Keys stored securely on device only. Gemini key: aistudio.google.com • WhatsApp token: Meta Business Manager.
+          {"• Gemini Pro Key: aistudio.google.com\n• ElevenLabs: elevenlabs.io/app\n• Server URL: Replit app domain (WhatsApp Web ke liye)\n• Sab keys device par securely store hote hain"}
         </Text>
       </View>
 
@@ -172,8 +209,10 @@ const styles = StyleSheet.create({
   toggleText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   inputWrap: { flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 14, borderWidth: 1, gap: 12 },
   textInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+  keyTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  keyTagText: { fontSize: 10, fontFamily: "Inter_700Bold" },
   infoBox: { flexDirection: "row", gap: 10, padding: 14, borderRadius: 12, borderWidth: 1 },
-  infoText: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 17 },
+  infoText: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 19 },
   saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, padding: 16, borderRadius: 16, shadowColor: "#00B4FF", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 16, elevation: 8 },
   saveBtnText: { color: "#060610", fontSize: 15, fontFamily: "Inter_700Bold", letterSpacing: 1 },
 });
