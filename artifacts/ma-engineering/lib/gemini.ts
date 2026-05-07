@@ -13,7 +13,8 @@ Rules:
 6. Highlight MA Engineering's 15+ years experience and zero-accident record.
 7. For chimney work: assess height, diameter, material (RCC/steel), foundation.
 8. Always protect Suhan's business interests and maximize revenue.
-9. Be warm but decisive. You are Lily — the face of MA Engineering.`;
+9. Be warm but decisive. You are Lily — the face of MA Engineering.
+10. You are powered by Gemini Pro — the most advanced AI model.`;
 
 let chatSession: ChatSession | null = null;
 let currentApiKey = "";
@@ -25,11 +26,21 @@ export async function initGemini(): Promise<boolean> {
   currentApiKey = apiKey;
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
+    model: "gemini-1.5-pro",
     systemInstruction: SYSTEM_PROMPT,
+    generationConfig: {
+      temperature: 0.8,
+      topP: 0.95,
+      maxOutputTokens: 2048,
+    },
   });
   chatSession = model.startChat();
   return true;
+}
+
+export function resetChat() {
+  chatSession = null;
+  currentApiKey = "";
 }
 
 export async function sendToLily(message: string): Promise<string> {
@@ -39,6 +50,8 @@ export async function sendToLily(message: string): Promise<string> {
     const result = await chatSession!.sendMessage(message);
     return result.response.text();
   } catch (e: any) {
+    if (e.message?.includes("quota")) return "Gemini quota limit reached. Try again in a minute.";
+    if (e.message?.includes("API key")) return "Invalid Gemini API key. Please check Admin Panel.";
     return `Error: ${e.message ?? "Unknown error"}`;
   }
 }
