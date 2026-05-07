@@ -53,6 +53,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="whatsapp"
+        options={{
+          title: "WhatsApp",
+          tabBarIcon: ({ color }) => <Feather name="smartphone" size={19} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="clients"
         options={{
           title: "Clients",
