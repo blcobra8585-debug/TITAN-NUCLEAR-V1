@@ -1,22 +1,36 @@
 {
   "expo": {
-    "name": "MA Engineering",
-    "slug": "ma-engineering",
-    "version": "1.0.0",
+    "name": "MA TITAN",
+    "slug": "ma-titan",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "ma-engineering",
-    "userInterfaceStyle": "automatic",
+    "scheme": "matitan",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "backgroundColor": "#060610",
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#060610"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.maengineering.titan"
     },
-    "android": {},
+    "android": {
+      "package": "com.maengineering.titan",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#060610"
+      },
+      "permissions": [
+        "android.permission.VIBRATE",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
@@ -33,6 +47,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ma-engineering-titan"
+      }
     }
   }
 }
