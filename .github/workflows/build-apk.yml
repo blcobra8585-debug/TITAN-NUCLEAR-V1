@@ -52,6 +52,11 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install CMake 3.31 + NDK 27
+        run: |
+          sdkmanager "cmake;3.31.3" "ndk;27.2.12479018" 2>/dev/null || true
+          yes | sdkmanager --licenses 2>/dev/null || true
+
       - name: Accept Android licenses
         run: yes | sdkmanager --licenses || true
 
@@ -61,9 +66,10 @@ jobs:
 
       - name: Build Debug APK
         working-directory: artifacts/ma-engineering/android
-        run: ./gradlew assembleDebug --no-daemon -x lint
+        run: ./gradlew assembleDebug --no-daemon -x lint --stacktrace
         env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx6g -Dorg.gradle.daemon=false"
+          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
 
       - name: Find APK
         id: find_apk
