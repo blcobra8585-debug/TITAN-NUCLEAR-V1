@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "matitan",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "backgroundColor": "#060610",
     "splash": {
       "image": "./assets/images/icon.png",
@@ -37,7 +37,9 @@
       ],
       "allowBackup": false
     },
-    "web": { "favicon": "./assets/images/icon.png" },
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
     "plugins": [
       "expo-router",
       "expo-font",
@@ -55,7 +57,9 @@
       "typedRoutes": true
     },
     "extra": {
-      "eas": { "projectId": "ma-engineering-titan" }
+      "eas": {
+        "projectId": "ma-engineering-titan"
+      }
     }
   }
 }
