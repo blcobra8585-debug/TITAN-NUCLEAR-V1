@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { initWAClient, getWAState, sendWAMessage, getMessages, disconnectWA } from "../lib/waWeb";
+import { initWAClient, getWAState, sendWAMessage, getMessages, disconnectWA, getBotReplies } from "../lib/waWeb";
 
 const router = Router();
 
@@ -43,6 +43,10 @@ router.get("/messages/:phone", (req, res) => {
 router.post("/disconnect", async (_req, res) => {
   await disconnectWA();
   res.json({ success: true });
+});
+
+router.get("/bot-replies", (_req, res) => {
+  res.json({ replies: getBotReplies() });
 });
 
 export default router;

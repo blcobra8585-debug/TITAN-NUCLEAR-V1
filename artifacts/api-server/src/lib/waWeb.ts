@@ -5,6 +5,7 @@ import makeWASocket, {
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import { logger } from "./logger";
+import { generateBotReply, isBotEnabled } from "./lilyBot";
 import path from "path";
 import os from "os";
 import qrcode from "qrcode";
@@ -19,6 +20,7 @@ interface WAState {
   sock: ReturnType<typeof makeWASocket> | null;
   chats: any[];
   messages: Record<string, any[]>;
+  botReplies: { phone: string; userMsg: string; botMsg: string; time: number }[];
 }
 
 const state: WAState = {
@@ -27,6 +29,7 @@ const state: WAState = {
   sock: null,
   chats: [],
   messages: {},
+  botReplies: [],
 };
 
 export function getWAState() {
@@ -36,6 +39,62 @@ export function getWAState() {
     connected: state.status === "connected",
     chats: state.chats,
   };
+}
+
+export function getBotReplies() {
+  return state.botReplies.slice(0, 50);
+}
+
+async function handleIncomingMessage(msg: any) {
+  try {
+    const jid = msg.key.remoteJid ?? "";
+    const isGroup = jid.endsWith("@g.us");
+    const fromMe = msg.key.fromMe;
+
+    // Don't reply to own messages or groups
+    if (fromMe || isGroup) return;
+
+    const text =
+      msg.message?.conversation ||
+      msg.message?.extendedTextMessage?.text ||
+      msg.message?.imageMessage?.caption ||
+      "";
+
+    if (!text.trim()) return;
+
+    const phone = jid.replace("@s.whatsapp.net", "");
+    logger.info({ phone, text: text.slice(0, 80) }, "Incoming WA message");
+
+    if (!isBotEnabled()) return;
+
+    // Small delay to seem human
+    await new Promise((r) => setTimeout(r, 1500 + Math.random() * 2000));
+
+    if (!state.sock || state.status !== "connected") return;
+
+    // Typing indicator
+    await state.sock.sendPresenceUpdate("composing", jid);
+    await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1500));
+
+    const reply = await generateBotReply(phone, text);
+    if (!reply) return;
+
+    await state.sock.sendPresenceUpdate("paused", jid);
+    await state.sock.sendMessage(jid, { text: reply });
+
+    state.botReplies.unshift({
+      phone,
+      userMsg: text.slice(0, 100),
+      botMsg: reply.slice(0, 200),
+      time: Date.now(),
+    });
+
+    if (state.botReplies.length > 100) state.botReplies.pop();
+
+    logger.info({ phone, reply: reply.slice(0, 80) }, "Bot reply sent");
+  } catch (err: any) {
+    logger.error({ err: err.message }, "Error handling incoming message");
+  }
 }
 
 export async function initWAClient(): Promise<void> {
@@ -77,7 +136,7 @@ export async function initWAClient(): Promise<void> {
       } else if (connection === "open") {
         state.status = "connected";
         state.qrDataUrl = null;
-        logger.info("WA connected successfully");
+        logger.info("WA connected — Lily Bot ready!");
       }
     });
 
@@ -87,12 +146,17 @@ export async function initWAClient(): Promise<void> {
       state.chats = [...chats, ...state.chats].slice(0, 50);
     });
 
-    sock.ev.on("messages.upsert", ({ messages: msgs }) => {
+    sock.ev.on("messages.upsert", async ({ messages: msgs, type }) => {
       for (const msg of msgs) {
         const jid = msg.key.remoteJid ?? "";
         if (!state.messages[jid]) state.messages[jid] = [];
         state.messages[jid].unshift(msg);
         if (state.messages[jid].length > 100) state.messages[jid].pop();
+
+        // Handle bot auto-reply for new messages
+        if (type === "notify") {
+          handleIncomingMessage(msg);
+        }
       }
     });
   } catch (err) {

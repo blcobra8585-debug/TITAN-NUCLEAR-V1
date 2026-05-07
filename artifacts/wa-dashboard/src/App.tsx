@@ -5,13 +5,15 @@ import WhatsAppPage from "@/pages/WhatsAppPage";
 import QuotesPage from "@/pages/QuotesPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import SettingsPage from "@/pages/SettingsPage";
-import { MessageSquare, FileText, BarChart3, Settings, Zap, Wifi, WifiOff } from "lucide-react";
+import BotPage from "@/pages/BotPage";
+import { MessageSquare, FileText, BarChart3, Settings, Zap, Wifi, WifiOff, Bot } from "lucide-react";
 
 const TABS = [
   { id: "whatsapp", label: "WhatsApp", Icon: MessageSquare, color: "#25D366" },
-  { id: "quotes",   label: "Quotes",   Icon: FileText,     color: "#00B4FF" },
-  { id: "analytics",label: "Analytics",Icon: BarChart3,    color: "#00FFD1" },
-  { id: "settings", label: "Settings", Icon: Settings,     color: "#7B2FFF" },
+  { id: "bot",      label: "Lily Bot", Icon: Bot,           color: "#00B4FF" },
+  { id: "quotes",   label: "Quotes",   Icon: FileText,      color: "#00FFD1" },
+  { id: "analytics",label: "Analytics",Icon: BarChart3,     color: "#7B2FFF" },
+  { id: "settings", label: "Settings", Icon: Settings,      color: "#FF6B6B" },
 ];
 
 export default function App() {
@@ -51,7 +53,13 @@ export default function App() {
         {/* Content */}
         <main className="flex-1 overflow-hidden">
           <Switch>
-            <Route path="/">{tab === "whatsapp" && <WhatsAppPage />}{tab === "quotes" && <QuotesPage />}{tab === "analytics" && <AnalyticsPage />}{tab === "settings" && <SettingsPage />}</Route>
+            <Route path="/">
+              {tab === "whatsapp" && <WhatsAppPage />}
+              {tab === "bot" && <BotPage />}
+              {tab === "quotes" && <QuotesPage />}
+              {tab === "analytics" && <AnalyticsPage />}
+              {tab === "settings" && <SettingsPage />}
+            </Route>
           </Switch>
         </main>
 
