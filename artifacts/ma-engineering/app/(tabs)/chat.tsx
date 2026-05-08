@@ -3,10 +3,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Modal, Platform, ScrollView,
+  ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, ScrollView,
   Share, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { saveChatMessage } from "@/lib/firebaseService";
@@ -66,7 +65,6 @@ export default function ChatScreen() {
     AsyncStorage.getItem("titan_active_model").then(m => {
       if (m) setActiveModel(m as AIModel);
     });
-    // Hacker scanline animation
     const t = setInterval(() => setScanLine(p => (p + 1) % 100), 50);
     return () => clearInterval(t);
   }, []);
@@ -126,7 +124,10 @@ export default function ChatScreen() {
   const modelColor = PROVIDER_COLORS[activeModelInfo.provider] ?? colors.neonBlue;
 
   return (
-    <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.background }]} behavior="padding">
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       {/* Hacker Header */}
       <View style={[styles.header, { paddingTop: topPad + 10, backgroundColor: colors.background, borderBottomColor: `${modelColor}30` }]}>
         <View style={[styles.avatarWrap, { backgroundColor: `${modelColor}20`, borderColor: `${modelColor}50`, borderWidth: 1 }]}>
@@ -145,7 +146,8 @@ export default function ChatScreen() {
             <Feather name="chevron-down" size={11} color={modelColor} />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={[styles.hBtn, { backgroundColor: autoSpeak ? `${colors.neonCyan}20` : "transparent", borderColor: autoSpeak ? colors.neonCyan : `${colors.border}60` }]}
+        <TouchableOpacity
+          style={[styles.hBtn, { backgroundColor: autoSpeak ? `${colors.neonCyan}20` : "transparent", borderColor: autoSpeak ? colors.neonCyan : `${colors.border}60` }]}
           onPress={() => { setAutoSpeak(!autoSpeak); Haptics.selectionAsync(); }}>
           <Feather name={autoSpeak ? "volume-2" : "volume-x"} size={14} color={autoSpeak ? colors.neonCyan : colors.mutedForeground} />
         </TouchableOpacity>
@@ -225,7 +227,8 @@ export default function ChatScreen() {
           value={input} onChangeText={setInput}
           onSubmitEditing={() => send()} multiline returnKeyType="send"
         />
-        <TouchableOpacity style={[styles.sendBtn, { backgroundColor: loading ? `${modelColor}50` : modelColor, shadowColor: modelColor }]}
+        <TouchableOpacity
+          style={[styles.sendBtn, { backgroundColor: loading ? `${modelColor}50` : modelColor, shadowColor: modelColor }]}
           onPress={() => send()} disabled={loading} activeOpacity={0.8}>
           <Feather name="send" size={18} color="#fff" />
         </TouchableOpacity>
@@ -299,29 +302,29 @@ const styles = StyleSheet.create({
   phraseText: { fontSize: 11, fontFamily: "Inter_500Medium" },
   msgRow: { flexDirection: "row" },
   bubble: { padding: 13, borderRadius: 18, borderWidth: 1, gap: 6 },
-  modelBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  modelBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, alignSelf: "flex-start" },
   modelBadgeText: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
-  msgText: { fontSize: 13.5, fontFamily: "Inter_400Regular", lineHeight: 21 },
-  msgActions: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-  actionChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 20, borderWidth: 1 },
+  msgText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  msgActions: { flexDirection: "row", gap: 6, marginTop: 4 },
+  actionChip: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 10, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4 },
   actionChipText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  typing: { flexDirection: "row", alignItems: "center", paddingLeft: 4, marginTop: 4, paddingBottom: 8 },
-  typingText: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  inputBar: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, gap: 10 },
-  input: { flex: 1, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, fontSize: 14, fontFamily: "Inter_400Regular", borderWidth: 1, maxHeight: 100 },
-  sendBtn: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 12, elevation: 8 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "flex-end" },
-  modalCard: { padding: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1 },
-  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  typing: { flexDirection: "row", alignItems: "center", padding: 16 },
+  typingText: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  inputBar: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1, gap: 10 },
+  input: { flex: 1, borderRadius: 18, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10, fontSize: 13, fontFamily: "Inter_400Regular", maxHeight: 100 },
+  sendBtn: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 10, elevation: 6 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", justifyContent: "flex-end" },
+  modalCard: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, padding: 20, paddingBottom: 34, maxHeight: "85%" },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
   modalTitle: { fontSize: 14, fontFamily: "Inter_700Bold", letterSpacing: 2 },
-  modalSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginBottom: 16 },
+  modalSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginBottom: 14 },
   modelOption: { flexDirection: "row", alignItems: "center", padding: 12 },
   modelIconWrap: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  modelName: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  modelName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   modelDesc: { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 2 },
-  keyHint: { fontSize: 9, fontFamily: "Inter_400Regular", marginTop: 2 },
-  freeBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  freeText: { fontSize: 8, fontFamily: "Inter_700Bold", letterSpacing: 1 },
-  speedBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  keyHint: { fontSize: 9, fontFamily: "Inter_400Regular", marginTop: 3 },
+  freeBadge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
+  freeText: { fontSize: 8, fontFamily: "Inter_700Bold" },
+  speedBadge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
   speedText: { fontSize: 8, fontFamily: "Inter_700Bold" },
 });

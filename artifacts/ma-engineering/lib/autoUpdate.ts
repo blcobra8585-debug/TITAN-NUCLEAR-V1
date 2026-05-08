@@ -3,7 +3,7 @@ import { Alert, Linking } from "react-native";
 
 const GITHUB_RELEASE_URL = "https://api.github.com/repos/blcobra8585-debug/TITAN-NUCLEAR-V1/releases/latest";
 const CHECK_INTERVAL_KEY = "last_update_check";
-const COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours
+const COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 export async function autoCheckUpdate(): Promise<void> {
   try {
@@ -31,7 +31,7 @@ export async function autoCheckUpdate(): Promise<void> {
         { text: "Download", onPress: () => Linking.openURL(downloadUrl).catch(() => {}) },
       ]
     );
-  } catch {
-    // silent fail
-  }
+  } catch {}
 }
+
+export const checkForUpdate = autoCheckUpdate;
