@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "matitan",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "backgroundColor": "#060610",
     "splash": {
       "image": "./assets/images/icon.png",
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.maengineering.titan",
-      "versionCode": 6,
+      "versionCode": 5,
       "compileSdkVersion": 35,
       "targetSdkVersion": 35,
       "minSdkVersion": 24,
@@ -33,8 +33,7 @@
         "android.permission.VIBRATE",
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.RECEIVE_BOOT_COMPLETED"
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "allowBackup": false
     },
@@ -51,12 +50,6 @@
           "icon": "./assets/images/icon.png",
           "color": "#00B4FF",
           "sounds": []
-        }
-      ],
-      [
-        "expo-av",
-        {
-          "microphonePermission": false
         }
       ]
     ],
