@@ -1,7 +1,9 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+
+// NOTE: auth and storage removed — not used anywhere in the app.
+// getAuth() was causing unnecessary Firebase Auth init on startup
+// which slows down and can crash the app on Android cold starts.
 
 const firebaseConfig = {
   apiKey: "AIzaSyBm0qftjdqRoH34VWWc0Tgz4kUcVA1LkXE",
@@ -14,7 +16,5 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 export default app;
