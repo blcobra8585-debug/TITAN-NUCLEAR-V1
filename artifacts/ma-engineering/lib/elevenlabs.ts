@@ -9,17 +9,28 @@ let _currentSound: Audio.Sound | null = null;
 
 /**
  * Convert ArrayBuffer to base64 string without FileReader.
- * FileReader does NOT exist in React Native — using ArrayBuffer + btoa instead.
+ * FileReader does NOT exist in React Native.
+ * Also, `btoa()` is not guaranteed to exist in all RN/Hermes builds, so we encode manually.
  */
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const uint8 = new Uint8Array(buffer);
-  let binary = "";
-  const chunkSize = 8192;
-  for (let i = 0; i < uint8.length; i += chunkSize) {
-    const chunk = uint8.subarray(i, i + chunkSize);
-    binary += String.fromCharCode(...Array.from(chunk));
+  const bytes = new Uint8Array(buffer);
+  const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let out = "";
+
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b1 = bytes[i]!;
+    const b2 = i + 1 < bytes.length ? bytes[i + 1]! : 0;
+    const b3 = i + 2 < bytes.length ? bytes[i + 2]! : 0;
+
+    const triplet = (b1 << 16) | (b2 << 8) | b3;
+
+    out += base64Chars[(triplet >> 18) & 63];
+    out += base64Chars[(triplet >> 12) & 63];
+    out += i + 1 < bytes.length ? base64Chars[(triplet >> 6) & 63] : "=";
+    out += i + 2 < bytes.length ? base64Chars[triplet & 63] : "=";
   }
-  return btoa(binary);
+
+  return out;
 }
 
 export async function speakWithLily(text: string): Promise<void> {

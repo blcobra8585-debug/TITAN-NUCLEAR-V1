@@ -61,10 +61,10 @@ router.get("/indiamart", async (req: Request, res: Response) => {
       }
     }
     logger.info({ count: newLeads.length }, "IndiaMART leads fetched");
-    res.json({ success: true, leads: newLeads, total: leadsStore.length });
+    return res.json({ success: true, leads: newLeads, total: leadsStore.length });
   } catch (err: any) {
     logger.error({ err: err.message }, "IndiaMART fetch error");
-    res.json({ success: false, error: err.message });
+    return res.json({ success: false, error: err.message });
   }
 });
 
@@ -78,7 +78,7 @@ router.post("/add", async (req: Request, res: Response) => {
     product, location, timestamp: Date.now(), replied: false,
   };
   leadsStore.unshift(lead);
-  res.json({ success: true, lead });
+  return res.json({ success: true, lead });
 });
 
 // ── Get All Leads ─────────────────────────────────
@@ -100,9 +100,9 @@ router.post("/auto-reply", async (req: Request, res: Response) => {
       lead.replied = true;
       lead.replyText = reply;
     }
-    res.json({ success: true, reply, lead });
+    return res.json({ success: true, reply, lead });
   } catch (err: any) {
-    res.json({ success: false, error: err.message });
+    return res.json({ success: false, error: err.message });
   }
 });
 

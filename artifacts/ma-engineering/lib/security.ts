@@ -119,6 +119,48 @@ export async function isSessionExpired(): Promise<boolean> {
   } catch { return false; }
 }
 
+function bytesToBase64(bytes: number[]): string {
+  const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b1 = bytes[i] ?? 0;
+    const b2 = bytes[i + 1] ?? 0;
+    const b3 = bytes[i + 2] ?? 0;
+    const triplet = (b1 << 16) | (b2 << 8) | b3;
+    out += base64Chars[(triplet >> 18) & 63];
+    out += base64Chars[(triplet >> 12) & 63];
+    out += i + 1 < bytes.length ? base64Chars[(triplet >> 6) & 63] : "=";
+    out += i + 2 < bytes.length ? base64Chars[triplet & 63] : "=";
+  }
+  return out;
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const cleaned = b64.replace(/[^A-Za-z0-9+/=]/g, "");
+  const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const lookup: Record<string, number> = {};
+  for (let i = 0; i < base64Chars.length; i++) lookup[base64Chars[i]!] = i;
+
+  const bytes: number[] = [];
+  for (let i = 0; i < cleaned.length; i += 4) {
+    const c1 = cleaned[i]!;
+    const c2 = cleaned[i + 1]!;
+    const c3 = cleaned[i + 2]!;
+    const c4 = cleaned[i + 3]!;
+
+    const n1 = lookup[c1] ?? 0;
+    const n2 = lookup[c2] ?? 0;
+    const n3 = c3 === "=" ? 0 : (lookup[c3] ?? 0);
+    const n4 = c4 === "=" ? 0 : (lookup[c4] ?? 0);
+
+    const triplet = (n1 << 18) | (n2 << 12) | (n3 << 6) | n4;
+    bytes.push((triplet >> 16) & 255);
+    if (c3 !== "=") bytes.push((triplet >> 8) & 255);
+    if (c4 !== "=") bytes.push(triplet & 255);
+  }
+  return new Uint8Array(bytes);
+}
+
 // Encrypt sensitive value (simple XOR + base64 — enough for local storage)
 export function encryptValue(value: string, key = "TITAN_LOCAL_KEY"): string {
   try {
@@ -126,14 +168,14 @@ export function encryptValue(value: string, key = "TITAN_LOCAL_KEY"): string {
     const encrypted = Array.from(value).map((c, i) =>
       c.charCodeAt(0) ^ keyBytes[i % keyBytes.length]
     );
-    return btoa(String.fromCharCode(...encrypted));
+    return bytesToBase64(encrypted);
   } catch { return value; }
 }
 
 export function decryptValue(encrypted: string, key = "TITAN_LOCAL_KEY"): string {
   try {
     const keyBytes = Array.from(key).map(c => c.charCodeAt(0));
-    const bytes = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0));
+    const bytes = base64ToBytes(encrypted);
     return Array.from(bytes).map((b, i) =>
       String.fromCharCode(b ^ keyBytes[i % keyBytes.length])
     ).join("");

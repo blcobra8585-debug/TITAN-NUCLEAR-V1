@@ -74,7 +74,13 @@ export default function HistoryScreen() {
 
   async function sendViaWA(q: Quote) {
     const msg = `🏗️ *MA ENGINEERING — Quote*\n\nClient: *${q.clientName}*\nProject: *${q.projectType}*\nTonnage: ${q.tonnage}T\n\n${q.quoteText}\n\n*Value: ${fmt(q.quotedAmount)}*\n\n*MA Engineering* | Suhan Siddiqui\n📞 +917895643069`;
-    const r = await sendWhatsAppMessage("91" + q.clientName.replace(/\D/g, ""), msg);
+    const digits = q.clientName.replace(/\D/g, "");
+    // NOTE: History data currently doesn't store client phone; prevent sending to wrong/empty number.
+    if (digits.length < 10) {
+      Alert.alert("Phone Missing", "Is quote me client ka phone save nahi hai. Naya quote banate waqt phone add karo.");
+      return;
+    }
+    const r = await sendWhatsAppMessage("91" + digits.slice(-10), msg);
     if (r) Alert.alert("✅", "WhatsApp pe bhej diya!");
     else Alert.alert("ℹ️", "Settings mein WA Token set karo, tab send hoga.");
   }
@@ -95,7 +101,10 @@ export default function HistoryScreen() {
   const filtered = filter === "all" ? quotes : quotes.filter(q => q.status === filter);
 
   const totalRev = quotes.filter(q => q.status === "approved").reduce((s, q) => s + q.quotedAmount, 0);
-  const winRate = quotes.length > 0 ? ((quotes.filter(q => q.status === "approved").length / quotes.filter(q => q.status !== "pending").length) * 100) || 0 : 0;
+  const closedCount = quotes.filter(q => q.status !== "pending").length;
+  const winRate = closedCount > 0
+    ? (quotes.filter(q => q.status === "approved").length / closedCount) * 100
+    : 0;
 
   function renderQuote({ item }: { item: Quote }) {
     const sc = STATUS_CONFIG[item.status];

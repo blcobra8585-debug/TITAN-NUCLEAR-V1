@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { timeoutSignal } from "@/lib/timeout";
 
 function fmt(amount: number) {
   if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(2)}Cr`;
@@ -42,8 +43,8 @@ export default function DashboardScreen() {
     if (serverUrl) {
       try {
         const [botRes, waRes] = await Promise.all([
-          fetch(`${serverUrl}/api/bot/status`, { signal: AbortSignal.timeout(5000) }).then(r => r.json()).catch(() => null),
-          fetch(`${serverUrl}/api/wa/status`, { signal: AbortSignal.timeout(5000) }).then(r => r.json()).catch(() => null),
+          fetch(`${serverUrl}/api/bot/status`, { signal: timeoutSignal(5000) }).then(r => r.json()).catch(() => null),
+          fetch(`${serverUrl}/api/wa/status`, { signal: timeoutSignal(5000) }).then(r => r.json()).catch(() => null),
         ]);
         if (botRes) setBotStats(botRes);
         if (waRes) setWaConnected(waRes.connected ?? false);

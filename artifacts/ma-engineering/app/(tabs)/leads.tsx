@@ -9,6 +9,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { sendToLily } from "@/lib/gemini";
+import { timeoutSignal } from "@/lib/timeout";
 import {
   FirebaseLead,
   getLeadStatsFromFirebase,
@@ -111,7 +112,7 @@ export default function LeadsScreen() {
         `&glusr_crm_start_time=${encodeURIComponent(fmt(start))}` +
         `&glusr_crm_end_time=${encodeURIComponent(fmt(now))}`;
 
-      const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+      const res = await fetch(url, { signal: timeoutSignal(20000) });
       const data = await res.json() as any;
       const inquiries = data.RESPONSE?.STATUS === 1 ? (data.RESPONSE?.RESULTS ?? []) : [];
 

@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { timeoutSignal } from "@/lib/timeout";
 
 export type WAStatus = "disconnected" | "connecting" | "qr" | "connected";
 
@@ -17,7 +18,7 @@ export async function getWAStatus(): Promise<WAState> {
   const base = await getServerUrl();
   if (!base) return { status: "disconnected", qr: null, connected: false };
   try {
-    const res = await fetch(`${base}/api/wa/status`, { signal: AbortSignal.timeout(8000) });
+    const res = await fetch(`${base}/api/wa/status`, { signal: timeoutSignal(8000) });
     const data = await res.json();
     return {
       status: data.status ?? "disconnected",
@@ -33,7 +34,7 @@ export async function startWAConnect(): Promise<WAState> {
   const base = await getServerUrl();
   if (!base) return { status: "disconnected", qr: null, connected: false };
   try {
-    const res = await fetch(`${base}/api/wa/qr`, { signal: AbortSignal.timeout(15000) });
+    const res = await fetch(`${base}/api/wa/qr`, { signal: timeoutSignal(15000) });
     const data = await res.json();
     return {
       status: data.status ?? "disconnected",
@@ -48,7 +49,7 @@ export async function startWAConnect(): Promise<WAState> {
 export async function disconnectWA(): Promise<void> {
   const base = await getServerUrl();
   if (!base) return;
-  await fetch(`${base}/api/wa/disconnect`, { method: "POST", signal: AbortSignal.timeout(8000) }).catch(() => {});
+  await fetch(`${base}/api/wa/disconnect`, { method: "POST", signal: timeoutSignal(8000) }).catch(() => {});
 }
 
 export async function sendWAMsg(phone: string, message: string): Promise<{ success: boolean; error?: string }> {
@@ -59,7 +60,7 @@ export async function sendWAMsg(phone: string, message: string): Promise<{ succe
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phone, message }),
-      signal: AbortSignal.timeout(10000),
+      signal: timeoutSignal(10000),
     });
     return await res.json();
   } catch (e: any) {

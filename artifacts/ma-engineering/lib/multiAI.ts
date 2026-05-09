@@ -7,6 +7,7 @@
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { GoogleGenerativeAI, ChatSession } from "@google/generative-ai";
+import { timeoutSignal } from "@/lib/timeout";
 
 export type AIModel =
   | "titan"
@@ -150,7 +151,7 @@ async function askOpenAI(message: string, modelId: AIModel): Promise<string> {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: GPT_API_MAP[modelId] ?? "gpt-4o", messages: gptHistory.slice(-20), temperature: 0.85, max_tokens: 1500 }),
-      signal: AbortSignal.timeout(30000),
+      signal: timeoutSignal(30000),
     });
     if (!res.ok) {
       if (res.status === 401) return "🔑 OpenAI key invalid — check karo!";
@@ -181,7 +182,7 @@ async function askClaude(message: string, modelId: AIModel): Promise<string> {
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
       body: JSON.stringify({ model: CLAUDE_MAP[modelId] ?? "claude-3-5-sonnet-20241022", max_tokens: 1500, system: MA_SYSTEM_PROMPT, messages: claudeHistory.slice(-20) }),
-      signal: AbortSignal.timeout(30000),
+      signal: timeoutSignal(30000),
     });
     if (!res.ok) {
       if (res.status === 401) return "🔑 Anthropic key invalid!";
@@ -214,7 +215,7 @@ async function askGroq(message: string, modelId: AIModel): Promise<string> {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: GROQ_MAP[modelId] ?? "llama-3.3-70b-versatile", messages: groqHistory.slice(-20), temperature: 0.85, max_tokens: 1500 }),
-      signal: AbortSignal.timeout(20000),
+      signal: timeoutSignal(20000),
     });
     if (!res.ok) {
       if (res.status === 401) return "🔑 Groq key invalid!";
@@ -242,7 +243,7 @@ async function askDeepSeek(message: string, modelId: AIModel): Promise<string> {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model, messages: deepseekHistory.slice(-20), temperature: 0.85, max_tokens: 1500 }),
-      signal: AbortSignal.timeout(30000),
+      signal: timeoutSignal(30000),
     });
     if (!res.ok) return `❌ DeepSeek error ${res.status}`;
     const data = await res.json() as any;
@@ -267,7 +268,7 @@ async function askMistral(message: string, modelId: AIModel): Promise<string> {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model, messages: mistralHistory.slice(-20), temperature: 0.85, max_tokens: 1500 }),
-      signal: AbortSignal.timeout(30000),
+      signal: timeoutSignal(30000),
     });
     if (!res.ok) return `❌ Mistral error ${res.status}`;
     const data = await res.json() as any;
@@ -286,7 +287,7 @@ async function askCohere(message: string): Promise<string> {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: "command-r-plus-08-2024", messages: [{ role: "user", content: `${MA_SYSTEM_PROMPT}\n\nUser: ${message}` }] }),
-      signal: AbortSignal.timeout(30000),
+      signal: timeoutSignal(30000),
     });
     if (!res.ok) return `❌ Cohere error ${res.status}`;
     const data = await res.json() as any;
@@ -304,7 +305,7 @@ async function askPerplexity(message: string, modelId: AIModel): Promise<string>
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model, messages: [{ role: "system", content: MA_SYSTEM_PROMPT }, { role: "user", content: message }], max_tokens: 1500 }),
-      signal: AbortSignal.timeout(30000),
+      signal: timeoutSignal(30000),
     });
     if (!res.ok) return `❌ Perplexity error ${res.status}`;
     const data = await res.json() as any;
@@ -369,4 +370,4 @@ export async function getAvailableModels(): Promise<AIModelInfo[]> {
   });
 }
 
-export type { AIModelInfo };
+// (AIModelInfo is already exported above)

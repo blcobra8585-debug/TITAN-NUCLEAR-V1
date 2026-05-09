@@ -15,6 +15,7 @@ import { getLastRecruitmentRun } from "@/lib/recruitmentBot";
 import { runDiagnostics } from "@/lib/autoHeal";
 import { hasPIN, setPIN, removePIN, getSecurityStatus } from "@/lib/security";
 import { resetAllAIChats } from "@/lib/multiAI";
+import { timeoutSignal } from "@/lib/timeout";
 
 interface ApiKeyField { label: string; storageKey: string; color: string; icon: string; placeholder: string; freeHint?: string; }
 
@@ -99,7 +100,7 @@ export default function AdminScreen() {
     if (!url) { setPingResult("❌ Server URL daalo pehle"); return; }
     setPingResult("⏳ Pinging...");
     try {
-      const res = await fetch(`${url}/api/healthz`, { signal: AbortSignal.timeout(7000) });
+      const res = await fetch(`${url}/api/healthz`, { signal: timeoutSignal(7000) });
       const data = await res.json();
       setPingResult(`✅ ONLINE — ${data.status ?? "ok"}`);
     } catch (e: any) {
@@ -109,8 +110,9 @@ export default function AdminScreen() {
 
   async function checkUpdate() {
     setUpdateInfo("⏳ Checking GitHub...");
-    const info = await checkForUpdate(true);
-    setUpdateInfo(info.available ? `🚀 New Build #${info.buildNumber} available!` : "✅ App is latest version");
+    // checkForUpdate shows an Alert if an update is available.
+    await checkForUpdate();
+    setUpdateInfo("✅ Check complete (agar update available hoga to popup aa jayega)");
   }
 
   async function runDiag() {

@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { timeoutSignal } from "@/lib/timeout";
 
 // Safe notification wrapper — never crashes
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -57,7 +58,7 @@ export function startBotReplyPolling(serverUrl: string): void {
   if (!serverUrl || pollTimer) return;
   pollTimer = setInterval(async () => {
     try {
-      const res = await fetch(`${serverUrl}/api/wa/bot-replies`, { signal: AbortSignal.timeout(5000) });
+      const res = await fetch(`${serverUrl}/api/wa/bot-replies`, { signal: timeoutSignal(5000) });
       const data = await res.json();
       const replies = data.replies ?? [];
       if (replies.length > lastCount && lastCount > 0) {

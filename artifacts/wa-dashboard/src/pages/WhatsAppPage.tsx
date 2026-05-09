@@ -70,10 +70,9 @@ export default function WhatsAppPage() {
   }
 
   useEffect(() => {
-    if (waStatus === "qr") {
-      const t = setInterval(pollStatus, 3000);
-      return () => clearInterval(t);
-    }
+    if (waStatus !== "qr") return;
+    const t = setInterval(pollStatus, 3000);
+    return () => clearInterval(t);
   }, [waStatus]);
 
   async function sendMsg() {

@@ -63,8 +63,17 @@ export default function ClientsScreen() {
   useEffect(() => { load(); }, []);
 
   async function load() {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (raw) setClients(JSON.parse(raw));
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) setClients(parsed);
+      else setClients([]);
+    } catch {
+      // Corrupted storage data can crash the screen — reset safely
+      await AsyncStorage.removeItem(STORAGE_KEY);
+      setClients([]);
+    }
   }
 
   async function save(list: Client[]) {
@@ -114,7 +123,11 @@ export default function ClientsScreen() {
   }
 
   async function callClient(phone: string) {
-    await Linking.openURL(`tel:${phone}`);
+    try {
+      await Linking.openURL(`tel:${phone}`);
+    } catch {
+      Alert.alert("Error", "Call open nahi ho paya (phone dialer unavailable).");
+    }
   }
 
   async function waClient(c: Client) {

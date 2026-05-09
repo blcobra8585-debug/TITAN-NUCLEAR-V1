@@ -7,6 +7,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db } from "./firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { timeoutSignal } from "@/lib/timeout";
 
 export interface ErrorReport {
   message: string;
@@ -128,7 +129,7 @@ export async function isOnline(): Promise<boolean> {
   try {
     const res = await fetch("https://www.google.com", {
       method: "HEAD",
-      signal: AbortSignal.timeout(5000),
+      signal: timeoutSignal(5000),
     });
     return res.ok;
   } catch { return false; }

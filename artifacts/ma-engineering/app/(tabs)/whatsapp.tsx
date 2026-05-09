@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { getWAStatus, startWAConnect, disconnectWA, WAStatus } from "@/lib/waWebClient";
 import { useApp } from "@/context/AppContext";
+import { timeoutSignal } from "@/lib/timeout";
 
 interface BotReply {
   phone: string;
@@ -55,9 +56,9 @@ export default function WhatsAppScreen() {
     if (!serverUrl) return;
     try {
       const [waRes, repliesRes, statsRes] = await Promise.all([
-        fetch(`${serverUrl}/api/wa/status`, { signal: AbortSignal.timeout(6000) }).then(r => r.json()).catch(() => null),
-        fetch(`${serverUrl}/api/wa/bot-replies`, { signal: AbortSignal.timeout(6000) }).then(r => r.json()).catch(() => null),
-        fetch(`${serverUrl}/api/bot/status`, { signal: AbortSignal.timeout(6000) }).then(r => r.json()).catch(() => null),
+        fetch(`${serverUrl}/api/wa/status`, { signal: timeoutSignal(6000) }).then(r => r.json()).catch(() => null),
+        fetch(`${serverUrl}/api/wa/bot-replies`, { signal: timeoutSignal(6000) }).then(r => r.json()).catch(() => null),
+        fetch(`${serverUrl}/api/bot/status`, { signal: timeoutSignal(6000) }).then(r => r.json()).catch(() => null),
       ]);
       if (waRes) { setStatus(waRes.status ?? "disconnected"); setQr(waRes.qr ?? null); }
       if (repliesRes?.replies) setReplies(repliesRes.replies);
@@ -102,7 +103,7 @@ export default function WhatsAppScreen() {
     if (!serverUrl) return;
     Haptics.selectionAsync();
     const endpoint = botEnabled ? "disable" : "enable";
-    await fetch(`${serverUrl}/api/bot/${endpoint}`, { method: "POST", signal: AbortSignal.timeout(5000) }).catch(() => {});
+    await fetch(`${serverUrl}/api/bot/${endpoint}`, { method: "POST", signal: timeoutSignal(5000) }).catch(() => {});
     setBotEnabledState(!botEnabled);
     await fetchAll();
   }
