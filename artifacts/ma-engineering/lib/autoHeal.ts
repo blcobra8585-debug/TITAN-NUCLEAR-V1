@@ -18,7 +18,7 @@ export interface ErrorReport {
   healAction?: string;
 }
 
-const APP_VERSION = "3.1.0";
+const APP_VERSION = "3.2.0";
 const MAX_RETRY = 3;
 const RETRY_DELAY_MS = 2000;
 
@@ -183,10 +183,16 @@ export async function runDiagnostics(): Promise<DiagnosticResult[]> {
 
   // Check IndiaMART credentials
   const imGlid = await AsyncStorage.getItem("indiamart_glid");
+  const imKey = await AsyncStorage.getItem("indiamart_key");
   results.push({
     issue: "IndiaMART GLID",
     status: imGlid ? "ok" : "warning",
     fix: imGlid ? undefined : "Leads Tab → IndiaMART setup karo",
+  });
+  results.push({
+    issue: "IndiaMART Key",
+    status: imKey ? "ok" : "warning",
+    fix: imKey ? undefined : "Leads Tab → IndiaMART Key set karo",
   });
 
   // Check network
