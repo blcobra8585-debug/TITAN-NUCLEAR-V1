@@ -20,7 +20,8 @@
     },
     "android": {
       "package": "com.maengineering.titan",
-      "versionCode": 5,
+      "versionCode": 6,
+      "googleServicesFile": "./google-services.json",
       "compileSdkVersion": 35,
       "targetSdkVersion": 35,
       "minSdkVersion": 24,
