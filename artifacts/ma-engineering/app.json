@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.maengineering.titan",
-      "versionCode": 6,
+      "versionCode": 7,
       "googleServicesFile": "./google-services.json",
       "compileSdkVersion": 35,
       "targetSdkVersion": 35,
@@ -44,6 +44,7 @@
     "plugins": [
       "expo-router",
       "expo-font",
+      "expo-av",
       "expo-web-browser",
       [
         "expo-notifications",
