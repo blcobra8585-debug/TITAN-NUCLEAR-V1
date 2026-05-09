@@ -14,8 +14,9 @@ export async function getLastHuntTime(): Promise<string> {
   } catch { return "Unknown"; }
 }
 
-async function fetchIndiaMART(query_str: string, token: string): Promise<any[]> {
-  const url = `https://mapi.indiamart.com/wservce/enquiry/listing/v2?glusr_usr_guid=${token}&app_version=33.0`;
+async function fetchIndiaMART(query_str: string, glid: string, key: string): Promise<any[]> {
+  // IndiaMART CRM API v2 — uses glid + key as auth params
+  const url = `https://mapi.indiamart.com/wservce/enquiry/listing/v2?glusr_usr_guid=${glid}&app_version=33.0&key=${key}`;
   const resp = await fetch(url, { headers: { Accept: "application/json" } });
   if (!resp.ok) return [];
   const data = await resp.json();
@@ -50,12 +51,14 @@ export async function startLeadHunting(): Promise<void> {
     const lastHunt = await AsyncStorage.getItem(LAST_HUNT_KEY).catch(() => null);
     if (lastHunt && Date.now() - parseInt(lastHunt, 10) < MIN_INTERVAL) return;
 
-    const token = await AsyncStorage.getItem("indiamart_token").catch(() => null);
-    if (!token) return;
+    // Fixed: read indiamart_glid + indiamart_key (matching Admin Panel keys)
+    const glid = await AsyncStorage.getItem("indiamart_glid").catch(() => null);
+    const key = await AsyncStorage.getItem("indiamart_key").catch(() => null);
+    if (!glid || !key) return;
 
     await AsyncStorage.setItem(LAST_HUNT_KEY, Date.now().toString()).catch(() => {});
 
-    const leads = await fetchIndiaMART("crane chimney", token);
+    const leads = await fetchIndiaMART("crane chimney", glid, key);
     for (const lead of leads.slice(0, 50)) {
       await saveLead(lead);
     }
