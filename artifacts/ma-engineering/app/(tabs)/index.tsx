@@ -36,6 +36,15 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [botStats, setBotStats] = useState<BotStats | null>(null);
   const [waConnected, setWaConnected] = useState(false);
+  const [stealthMode, setStealthMode] = useState(false);
+  const [coreTemp, setCoreTemp] = useState(42);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCoreTemp(prev => (titanMode ? Math.floor(Math.random() * 15) + 70 : Math.floor(Math.random() * 5) + 38));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [titanMode]);
 
   async function loadAll() {
     setLoading(true);
@@ -155,8 +164,36 @@ export default function DashboardScreen() {
           ))}
         </View>
 
+        {/* NUCLEAR DIAGNOSTICS (NEW FEATURE) */}
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginTop: 10 }]}>NUCLEAR CORE DIAGNOSTICS</Text>
+        <View style={[styles.diagCard, { backgroundColor: colors.card, borderColor: coreTemp > 80 ? "#ef4444" : colors.border }]}>
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.cardTitle, { color: coreTemp > 80 ? "#ef4444" : colors.foreground }]}>
+                {titanMode ? "CORE OVERRIDE ACTIVE" : "SYSTEM STABLE"}
+              </Text>
+              <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>
+                Core Temp: {coreTemp}°C • Ping: {Math.floor(Math.random() * 20) + 12}ms
+              </Text>
+            </View>
+            <View style={[styles.titanIcon, { backgroundColor: stealthMode ? "#10b98120" : `${colors.border}50`, width: 40, height: 40 }]}>
+              <Feather name={stealthMode ? "eye-off" : "eye"} size={20} color={stealthMode ? "#10b981" : colors.mutedForeground} />
+            </View>
+          </View>
+          
+          <View style={[styles.row, { marginTop: 16, justifyContent: "space-between" }]}>
+            <Text style={[styles.cardSub, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Stealth Protocol (Ghost Sync)</Text>
+            <Switch 
+              value={stealthMode} 
+              onValueChange={(val) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setStealthMode(val); }} 
+              trackColor={{ false: colors.border, true: "#10b98150" }} 
+              thumbColor={stealthMode ? "#10b981" : "#555"} 
+            />
+          </View>
+        </View>
+
         {/* Quick Actions */}
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>QUICK ACTIONS</Text>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginTop: 10 }]}>QUICK ACTIONS</Text>
         <View style={[styles.row, { flexWrap: "wrap", gap: 12 }]}>
           {[
             { label: "Chat Lily", icon: "message-circle" as const, color: colors.neonBlue, route: "/(tabs)/chat" },
@@ -227,6 +264,7 @@ const styles = StyleSheet.create({
   cardSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
   revenueCard: { padding: 16, borderRadius: 16, borderWidth: 1.5, gap: 4 },
   botCard: { padding: 16, borderRadius: 16, borderWidth: 1.5, gap: 4 },
+  diagCard: { padding: 16, borderRadius: 16, borderWidth: 1.5, marginTop: 4 },
   revenueAmount: { fontSize: 22, fontFamily: "Inter_700Bold", marginTop: 4 },
   botReplies: { fontSize: 22, fontFamily: "Inter_700Bold", marginTop: 4 },
   botActive: { fontSize: 10, fontFamily: "Inter_600SemiBold", marginTop: 2 },
