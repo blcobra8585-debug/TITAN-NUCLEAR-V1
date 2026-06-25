@@ -1,18 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 
-// Fix #4: without these handlers, any unexpected async error anywhere in
-// the server (e.g. an unawaited promise rejection deep in a route or a
-// background job) can crash the whole Node process with no diagnostics.
-process.on("unhandledRejection", (reason) => {
-  logger.error({ err: reason }, "Unhandled promise rejection");
-});
-
-process.on("uncaughtException", (err) => {
-  logger.error({ err }, "Uncaught exception — exiting so the process manager can restart");
-  process.exit(1);
-});
-
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
