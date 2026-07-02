@@ -21,6 +21,7 @@ import { sendWhatsAppMessage } from "@/lib/whatsapp";
 interface Quote {
   id: string;
   clientName: string;
+  clientPhone?: string;
   projectType: string;
   tonnage: number;
   quotedAmount: number;
@@ -74,15 +75,15 @@ export default function HistoryScreen() {
 
   async function sendViaWA(q: Quote) {
     const msg = `🏗️ *MA ENGINEERING — Quote*\n\nClient: *${q.clientName}*\nProject: *${q.projectType}*\nTonnage: ${q.tonnage}T\n\n${q.quoteText}\n\n*Value: ${fmt(q.quotedAmount)}*\n\n*MA Engineering* | Suhan Siddiqui\n📞 +917895643069`;
-    const digits = q.clientName.replace(/\D/g, "");
-    // NOTE: History data currently doesn't store client phone; prevent sending to wrong/empty number.
+    const digits = (q.clientPhone ?? "").replace(/\D/g, "");
     if (digits.length < 10) {
-      Alert.alert("Phone Missing", "Is quote me client ka phone save nahi hai. Naya quote banate waqt phone add karo.");
+      Alert.alert("Phone Missing", "Is quote me client ka phone save nahi hai. Naya quote banate waqt phone number bhi add karo.");
       return;
     }
-    const r = await sendWhatsAppMessage("91" + digits.slice(-10), msg);
-    if (r) Alert.alert("✅", "WhatsApp pe bhej diya!");
-    else Alert.alert("ℹ️", "Settings mein WA Token set karo, tab send hoga.");
+    const phone = digits.length === 10 ? "91" + digits : digits;
+    const r = await sendWhatsAppMessage(phone, msg);
+    if (r.success) Alert.alert("✅", "WhatsApp pe bhej diya!");
+    else Alert.alert("ℹ️", r.error ?? "Settings mein WA Token set karo, tab send hoga.");
   }
 
   function fmt(n: number) {

@@ -14,9 +14,12 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ReAnimated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { timeoutSignal } from "@/lib/timeout";
+import GlowOrb from "@/components/GlowOrb";
+import Tilt3DCard from "@/components/Tilt3DCard";
 
 function fmt(amount: number) {
   if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(2)}Cr`;
@@ -84,9 +87,13 @@ export default function DashboardScreen() {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.neonBlue} />}
     >
+      {/* Ambient depth — drifting neon orbs give the header area a sense of 3D space */}
+      <GlowOrb color={colors.neonBlue} size={200} style={{ top: -50, left: -60 }} duration={5800} />
+      <GlowOrb color={colors.neonPurple} size={160} style={{ top: 40, right: -60 }} duration={7000} driftX={22} driftY={14} />
+
       <View style={styles.pad}>
         {/* Header */}
-        <View style={styles.row}>
+        <ReAnimated.View entering={FadeInDown.duration(500)} style={styles.row}>
           <View>
             <Text style={[styles.logo, { color: colors.neonBlue }]}>MA TITAN</Text>
             <Text style={[styles.sub, { color: colors.mutedForeground }]}>Suhan Siddiqui • Admin</Text>
@@ -97,56 +104,62 @@ export default function DashboardScreen() {
           >
             <Feather name="settings" size={20} color={colors.neonBlue} />
           </TouchableOpacity>
-        </View>
+        </ReAnimated.View>
 
         {/* Titan Mode */}
-        <View style={[styles.titanCard, { backgroundColor: colors.card, borderColor: titanMode ? colors.neonBlue : colors.border, shadowColor: titanMode ? colors.neonBlue : "transparent" }]}>
-          <View style={[styles.titanIcon, { backgroundColor: titanMode ? `${colors.neonBlue}20` : `${colors.border}50` }]}>
-            <Feather name="zap" size={26} color={titanMode ? colors.neonBlue : colors.mutedForeground} />
-          </View>
-          <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={[styles.cardTitle, { color: titanMode ? colors.neonBlue : colors.foreground }]}>TITAN MODE</Text>
-            <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>{titanMode ? "System Full Power pe hai" : "Tap karo activate karne ke liye"}</Text>
-          </View>
-          <Switch value={titanMode} onValueChange={toggleTitan} trackColor={{ false: colors.border, true: `${colors.neonBlue}50` }} thumbColor={titanMode ? colors.neonBlue : "#555"} />
-        </View>
+        <ReAnimated.View entering={FadeInDown.duration(500).delay(80)}>
+          <Tilt3DCard style={[styles.titanCard, { backgroundColor: colors.card, borderColor: titanMode ? colors.neonBlue : colors.border, shadowColor: titanMode ? colors.neonBlue : "transparent" }]}>
+            <View style={[styles.titanIcon, { backgroundColor: titanMode ? `${colors.neonBlue}20` : `${colors.border}50` }]}>
+              <Feather name="zap" size={26} color={titanMode ? colors.neonBlue : colors.mutedForeground} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={[styles.cardTitle, { color: titanMode ? colors.neonBlue : colors.foreground }]}>TITAN MODE</Text>
+              <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>{titanMode ? "System Full Power pe hai" : "Tap karo activate karne ke liye"}</Text>
+            </View>
+            <Switch value={titanMode} onValueChange={toggleTitan} trackColor={{ false: colors.border, true: `${colors.neonBlue}50` }} thumbColor={titanMode ? colors.neonBlue : "#555"} />
+          </Tilt3DCard>
+        </ReAnimated.View>
 
         {/* Revenue + Bot Row */}
         <View style={[styles.row, { gap: 12, alignItems: "stretch" }]}>
           {/* Revenue */}
-          <View style={[styles.revenueCard, { borderColor: colors.neonCyan, backgroundColor: colors.card, flex: 1 }]}>
-            <View style={[styles.row, { gap: 6 }]}>
-              <Feather name="trending-up" size={13} color={colors.neonCyan} />
-              <Text style={[styles.miniLabel, { color: colors.neonCyan, letterSpacing: 1 }]}>REVENUE</Text>
-            </View>
-            {loading ? (
-              <ActivityIndicator color={colors.neonCyan} style={{ marginTop: 10 }} />
-            ) : (
-              <Text style={[styles.revenueAmount, { color: colors.neonCyan }]}>
-                {fmt(totalRevenue + 1130000)}
-              </Text>
-            )}
-            <Text style={[styles.miniLabel, { color: colors.mutedForeground }]}>This Quarter</Text>
-          </View>
+          <ReAnimated.View entering={FadeInDown.duration(500).delay(140)} style={{ flex: 1 }}>
+            <Tilt3DCard style={[styles.revenueCard, { borderColor: colors.neonCyan, backgroundColor: colors.card }]}>
+              <View style={[styles.row, { gap: 6 }]}>
+                <Feather name="trending-up" size={13} color={colors.neonCyan} />
+                <Text style={[styles.miniLabel, { color: colors.neonCyan, letterSpacing: 1 }]}>REVENUE</Text>
+              </View>
+              {loading ? (
+                <ActivityIndicator color={colors.neonCyan} style={{ marginTop: 10 }} />
+              ) : (
+                <Text style={[styles.revenueAmount, { color: colors.neonCyan }]}>
+                  {fmt(totalRevenue + 1130000)}
+                </Text>
+              )}
+              <Text style={[styles.miniLabel, { color: colors.mutedForeground }]}>This Quarter</Text>
+            </Tilt3DCard>
+          </ReAnimated.View>
 
           {/* Bot Status */}
-          <View style={[styles.botCard, { borderColor: waConnected ? `${colors.neonCyan}60` : colors.border, backgroundColor: colors.card, flex: 1 }]}>
-            <View style={[styles.row, { gap: 6 }]}>
-              <View style={[styles.smallDot, { backgroundColor: waConnected ? colors.neonCyan : colors.mutedForeground }]} />
-              <Text style={[styles.miniLabel, { color: waConnected ? colors.neonCyan : colors.mutedForeground, letterSpacing: 1 }]}>LILY BOT</Text>
-            </View>
-            <Text style={[styles.botReplies, { color: waConnected ? colors.neonCyan : colors.mutedForeground }]}>
-              {botStats?.totalReplies ?? 0}
-            </Text>
-            <Text style={[styles.miniLabel, { color: colors.mutedForeground }]}>
-              {waConnected ? "Replies sent" : "WA Disconnected"}
-            </Text>
-            {botStats && (
-              <Text style={[styles.botActive, { color: botStats.enabled ? "#25D366" : colors.accent }]}>
-                {botStats.enabled ? "● Auto ON" : "● Manual"}
+          <ReAnimated.View entering={FadeInDown.duration(500).delay(200)} style={{ flex: 1 }}>
+            <Tilt3DCard style={[styles.botCard, { borderColor: waConnected ? `${colors.neonCyan}60` : colors.border, backgroundColor: colors.card }]}>
+              <View style={[styles.row, { gap: 6 }]}>
+                <View style={[styles.smallDot, { backgroundColor: waConnected ? colors.neonCyan : colors.mutedForeground }]} />
+                <Text style={[styles.miniLabel, { color: waConnected ? colors.neonCyan : colors.mutedForeground, letterSpacing: 1 }]}>LILY BOT</Text>
+              </View>
+              <Text style={[styles.botReplies, { color: waConnected ? colors.neonCyan : colors.mutedForeground }]}>
+                {botStats?.totalReplies ?? 0}
               </Text>
-            )}
-          </View>
+              <Text style={[styles.miniLabel, { color: colors.mutedForeground }]}>
+                {waConnected ? "Replies sent" : "WA Disconnected"}
+              </Text>
+              {botStats && (
+                <Text style={[styles.botActive, { color: botStats.enabled ? "#25D366" : colors.accent }]}>
+                  {botStats.enabled ? "● Auto ON" : "● Manual"}
+                </Text>
+              )}
+            </Tilt3DCard>
+          </ReAnimated.View>
         </View>
 
         {/* Stats Row */}
@@ -155,12 +168,14 @@ export default function DashboardScreen() {
             { icon: "tool" as const, num: "4", label: "Active\nProjects", color: colors.neonBlue },
             { icon: "file-text" as const, num: "7", label: "Pending\nQuotes", color: colors.accent },
             { icon: "users" as const, num: botStats?.activeChats?.toString() ?? "0", label: "Active\nChats", color: "#25D366" },
-          ].map(s => (
-            <View key={s.label} style={[styles.statCard, { borderColor: s.color, backgroundColor: colors.card, flex: 1 }]}>
-              <Feather name={s.icon} size={20} color={s.color} />
-              <Text style={[styles.statNum, { color: s.color }]}>{s.num}</Text>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
-            </View>
+          ].map((s, i) => (
+            <ReAnimated.View key={s.label} entering={FadeInDown.duration(500).delay(260 + i * 60)} style={{ flex: 1 }}>
+              <Tilt3DCard style={[styles.statCard, { borderColor: s.color, backgroundColor: colors.card }]}>
+                <Feather name={s.icon} size={20} color={s.color} />
+                <Text style={[styles.statNum, { color: s.color }]}>{s.num}</Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
+              </Tilt3DCard>
+            </ReAnimated.View>
           ))}
         </View>
 
@@ -202,50 +217,60 @@ export default function DashboardScreen() {
             { label: "Admin", icon: "shield" as const, color: "#FF9F43", route: "/(tabs)/admin" },
             { label: "Clients", icon: "users" as const, color: colors.accent, route: "/(tabs)/clients" },
             { label: "History", icon: "bar-chart-2" as const, color: "#F59E0B", route: "/(tabs)/history" },
-          ].map((a) => (
-            <TouchableOpacity
-              key={a.label}
-              style={[styles.actionCard, { borderColor: a.color, backgroundColor: colors.card, width: "30%" }]}
-              onPress={() => { Haptics.selectionAsync(); router.push(a.route as any); }}
-              activeOpacity={0.75}
-            >
-              <Feather name={a.icon} size={22} color={a.color} />
-              <Text style={[styles.actionLabel, { color: a.color }]}>{a.label}</Text>
-            </TouchableOpacity>
+          ].map((a, i) => (
+            <ReAnimated.View key={a.label} entering={FadeInUp.duration(450).delay(400 + i * 50)} style={{ width: "30%" }}>
+              <Tilt3DCard
+                style={[styles.actionCard, { borderColor: a.color, backgroundColor: colors.card }]}
+                maxTilt={14}
+              >
+                <TouchableOpacity
+                  style={styles.actionCardInner}
+                  onPress={() => { Haptics.selectionAsync(); router.push(a.route as any); }}
+                  activeOpacity={0.75}
+                >
+                  <Feather name={a.icon} size={22} color={a.color} />
+                  <Text style={[styles.actionLabel, { color: a.color }]}>{a.label}</Text>
+                </TouchableOpacity>
+              </Tilt3DCard>
+            </ReAnimated.View>
           ))}
         </View>
 
         {/* Lily Status */}
-        <View style={[styles.lilyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.avatar, { backgroundColor: `${colors.neonBlue}20` }]}>
-            <Feather name="user" size={22} color={colors.neonBlue} />
-          </View>
-          <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={[styles.cardTitle, { color: colors.foreground }]}>Lily | Senior Manager</Text>
-            <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>Gemini Pro • EOT Cranes up to 200T</Text>
-          </View>
-          <View style={[styles.onlineBadge, { backgroundColor: `${colors.neonCyan}20`, borderColor: `${colors.neonCyan}50` }]}>
-            <Text style={[styles.onlineText, { color: colors.neonCyan }]}>ONLINE</Text>
-          </View>
-        </View>
+        <ReAnimated.View entering={FadeInDown.duration(500).delay(700)}>
+          <Tilt3DCard style={[styles.lilyCard, { backgroundColor: colors.card, borderColor: colors.border }]} maxTilt={6}>
+            <View style={[styles.avatar, { backgroundColor: `${colors.neonBlue}20` }]}>
+              <Feather name="user" size={22} color={colors.neonBlue} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={[styles.cardTitle, { color: colors.foreground }]}>Lily | Senior Manager</Text>
+              <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>Gemini Pro • EOT Cranes up to 200T</Text>
+            </View>
+            <View style={[styles.onlineBadge, { backgroundColor: `${colors.neonCyan}20`, borderColor: `${colors.neonCyan}50` }]}>
+              <Text style={[styles.onlineText, { color: colors.neonCyan }]}>ONLINE</Text>
+            </View>
+          </Tilt3DCard>
+        </ReAnimated.View>
 
         {/* Pricing Info */}
-        <View style={[styles.pricingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>PRICING MATRIX</Text>
-          <View style={[styles.row, { marginTop: 10, gap: 16, flexWrap: "wrap" }]}>
-            {[
-              ["Base Rate", "₹5,500/T"],
-              ["Quote Rate", "₹6,600+/T"],
-              ["EOT Crane", "₹11.3L+"],
-              ["Margin", "20-30%"],
-            ].map(([lbl, val]) => (
-              <View key={lbl} style={{ alignItems: "center" }}>
-                <Text style={[styles.pricingVal, { color: colors.neonCyan }]}>{val}</Text>
-                <Text style={[styles.miniLabel, { color: colors.mutedForeground }]}>{lbl}</Text>
-              </View>
-            ))}
+        <ReAnimated.View entering={FadeInDown.duration(500).delay(760)}>
+          <View style={[styles.pricingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>PRICING MATRIX</Text>
+            <View style={[styles.row, { marginTop: 10, gap: 16, flexWrap: "wrap" }]}>
+              {[
+                ["Base Rate", "₹5,500/T"],
+                ["Quote Rate", "₹6,600+/T"],
+                ["EOT Crane", "₹11.3L+"],
+                ["Margin", "20-30%"],
+              ].map(([lbl, val]) => (
+                <View key={lbl} style={{ alignItems: "center" }}>
+                  <Text style={[styles.pricingVal, { color: colors.neonCyan }]}>{val}</Text>
+                  <Text style={[styles.miniLabel, { color: colors.mutedForeground }]}>{lbl}</Text>
+                </View>
+              ))}
+            </View>
           </View>
-        </View>
+        </ReAnimated.View>
       </View>
     </ScrollView>
   );
@@ -274,7 +299,8 @@ const styles = StyleSheet.create({
   statNum: { fontSize: 24, fontFamily: "Inter_700Bold" },
   statLabel: { fontSize: 10, fontFamily: "Inter_400Regular" },
   sectionLabel: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 2 },
-  actionCard: { padding: 14, borderRadius: 14, borderWidth: 1.5, alignItems: "center", gap: 8, elevation: 4 },
+  actionCard: { borderRadius: 14, borderWidth: 1.5, elevation: 4, overflow: "hidden" },
+  actionCardInner: { padding: 14, alignItems: "center", gap: 8 },
   actionLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   lilyCard: { flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 16, borderWidth: 1 },
   avatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },

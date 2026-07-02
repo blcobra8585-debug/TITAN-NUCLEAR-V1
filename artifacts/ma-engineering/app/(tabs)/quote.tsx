@@ -35,6 +35,7 @@ export default function QuoteScreen() {
   const { refreshRevenue } = useApp();
 
   const [client, setClient] = useState("");
+  const [phone, setPhone] = useState("");
   const [tons, setTons] = useState("");
   const [project, setProject] = useState(PROJECTS[0]);
   const [quote, setQuote] = useState("");
@@ -66,6 +67,7 @@ export default function QuoteScreen() {
     setQuote(result);
     await saveQuote({
       clientName: client,
+      clientPhone: phone.trim(),
       projectType: project,
       tonnage: parseFloat(tons),
       quotedAmount: quotedCost,
@@ -73,6 +75,12 @@ export default function QuoteScreen() {
     }).catch(() => {});
     await refreshRevenue();
     setLoading(false);
+  }
+
+  function openWaModal() {
+    setClientPhone(phone.trim());
+    Haptics.selectionAsync();
+    setWaModal(true);
   }
 
   async function sendViaWhatsApp() {
@@ -122,6 +130,19 @@ export default function QuoteScreen() {
             placeholderTextColor={colors.mutedForeground}
             value={client}
             onChangeText={setClient}
+          />
+        </View>
+
+        {/* Client Phone (saved with quote so WA send never guesses the number) */}
+        <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="phone" size={18} color={colors.neonBlue} />
+          <TextInput
+            style={[styles.textInput, { color: colors.foreground }]}
+            placeholder="Client WhatsApp Number (optional)"
+            placeholderTextColor={colors.mutedForeground}
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
           />
         </View>
 
@@ -218,7 +239,7 @@ export default function QuoteScreen() {
             {/* WhatsApp Send Button */}
             <TouchableOpacity
               style={[styles.waBtn, { backgroundColor: "#25D366", borderColor: "#1ebe5d" }]}
-              onPress={() => { Haptics.selectionAsync(); setWaModal(true); }}
+              onPress={openWaModal}
               activeOpacity={0.85}
             >
               <Feather name="message-circle" size={18} color="#fff" />

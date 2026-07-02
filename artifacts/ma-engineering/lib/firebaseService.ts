@@ -34,6 +34,7 @@ export interface FirebaseLead {
 
 export async function saveQuote(data: {
   clientName: string;
+  clientPhone?: string;
   projectType: string;
   tonnage: number;
   quotedAmount: number;

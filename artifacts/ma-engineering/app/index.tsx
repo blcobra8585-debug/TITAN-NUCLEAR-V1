@@ -8,6 +8,15 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ReAnimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
+import GlowOrb from "@/components/GlowOrb";
 
 const { width } = Dimensions.get("window");
 
@@ -19,6 +28,35 @@ export default function SplashScreen() {
   const scale = useRef(new Animated.Value(0.6)).current;
   const titleY = useRef(new Animated.Value(20)).current;
   const subtitleOpacity = useRef(new Animated.Value(0)).current;
+
+  // Continuous 3D spin of the icon ring (perspective + rotateY) so it
+  // reads as a rotating badge with depth instead of a flat spinner.
+  const spin = useSharedValue(0);
+  const bob = useSharedValue(0);
+
+  useEffect(() => {
+    spin.value = withRepeat(
+      withTiming(360, { duration: 4200, easing: Easing.linear }),
+      -1,
+      false
+    );
+    bob.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 1400, easing: Easing.inOut(Easing.quad) })
+      ),
+      -1,
+      false
+    );
+  }, []);
+
+  const ringSpinStyle = useAnimatedStyle(() => ({
+    transform: [
+      { perspective: 900 },
+      { translateY: (bob.value - 0.5) * 10 },
+      { rotateY: `${spin.value}deg` },
+    ],
+  }));
 
   useEffect(() => {
     Animated.parallel([
@@ -39,9 +77,16 @@ export default function SplashScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Ambient depth — soft drifting neon orbs behind everything */}
+      <GlowOrb color="#00B4FF" size={220} style={{ top: -60, left: -60 }} duration={5200} />
+      <GlowOrb color="#7B2FFF" size={180} style={{ bottom: -40, right: -50 }} duration={6400} driftX={26} driftY={16} />
+      <GlowOrb color="#00FFD1" size={140} style={{ top: "35%", right: -30 }} duration={4600} driftX={14} driftY={30} />
+
       <View style={styles.center}>
-        <Animated.View style={[styles.iconRing, { opacity, transform: [{ scale }] }]}>
-          <Text style={styles.iconEmoji}>⚙️</Text>
+        <Animated.View style={{ opacity, transform: [{ scale }] }}>
+          <ReAnimated.View style={[styles.iconRing, ringSpinStyle]}>
+            <Text style={styles.iconEmoji}>⚙️</Text>
+          </ReAnimated.View>
         </Animated.View>
 
         <Animated.Text style={[styles.title, { transform: [{ translateY: titleY }], opacity }]}>
@@ -65,7 +110,7 @@ export default function SplashScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#060610" },
+  container: { flex: 1, backgroundColor: "#060610", overflow: "hidden" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   iconRing: {
     width: 110, height: 110, borderRadius: 55,
