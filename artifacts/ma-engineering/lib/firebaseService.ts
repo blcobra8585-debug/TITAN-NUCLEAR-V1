@@ -43,7 +43,9 @@ export async function saveQuote(data: {
   await addDoc(collection(db, "quotes"), {
     ...data,
     status: "pending",
+    paymentStatus: "unpaid",
     timestamp: serverTimestamp(),
+    createdAt: serverTimestamp(),
   });
 }
 

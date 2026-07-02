@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +19,7 @@ import { generateQuote } from "@/lib/gemini";
 import { saveQuote } from "@/lib/firebaseService";
 import { sendWhatsAppMessage, buildQuoteMessage } from "@/lib/whatsapp";
 import { useApp } from "@/context/AppContext";
+import SuccessBurst, { SuccessBurstHandle } from "@/components/SuccessBurst";
 
 const PROJECTS = [
   "EOT Crane Installation",
@@ -45,6 +46,7 @@ export default function QuoteScreen() {
   const [waModal, setWaModal] = useState(false);
   const [clientPhone, setClientPhone] = useState("");
   const [waSending, setWaSending] = useState(false);
+  const burstRef = useRef<SuccessBurstHandle>(null);
 
   const baseCost = (parseFloat(tons) || 0) * 5500;
   const quotedCost = baseCost * 1.25;
@@ -65,16 +67,17 @@ export default function QuoteScreen() {
     setQuote("");
     const result = await generateQuote(client, project, parseFloat(tons));
     setQuote(result);
-    await saveQuote({
+    const saved = await saveQuote({
       clientName: client,
       clientPhone: phone.trim(),
       projectType: project,
       tonnage: parseFloat(tons),
       quotedAmount: quotedCost,
       quoteText: result,
-    }).catch(() => {});
+    }).then(() => true).catch(() => false);
     await refreshRevenue();
     setLoading(false);
+    if (saved) burstRef.current?.fire();
   }
 
   function openWaModal() {
@@ -95,7 +98,7 @@ export default function QuoteScreen() {
     setWaSending(false);
     setWaModal(false);
     if (result.success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      burstRef.current?.fire();
       Alert.alert("✅ Bhej diya!", `Quote ${clientPhone} pe WhatsApp par bhej diya gaya.`);
     } else {
       Alert.alert("❌ Error", result.error ?? "WhatsApp send failed.");
@@ -298,6 +301,7 @@ export default function QuoteScreen() {
           </View>
         </View>
       </Modal>
+      <SuccessBurst ref={burstRef} />
     </>
   );
 }

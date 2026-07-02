@@ -31,6 +31,7 @@ export default function SplashScreen() {
   const idleSpin = useSharedValue(0);
   const idleBob = useSharedValue(0);
   const glowPulse = useSharedValue(0);
+  const shimmerX = useSharedValue(-1);
 
   // Fine-grained progress bar fill driven by a shared value for a
   // buttery-smooth native-thread animation.
@@ -67,6 +68,20 @@ export default function SplashScreen() {
       )
     );
 
+    // Shimmer sweep — a soft diagonal light streak crosses the logo
+    // periodically once it's settled, like light reflecting off a 3D surface.
+    shimmerX.value = withDelay(
+      1200,
+      withRepeat(
+        withSequence(
+          withTiming(1.4, { duration: 1100, easing: Easing.inOut(Easing.cubic) }),
+          withDelay(1400, withTiming(-1, { duration: 0 }))
+        ),
+        -1,
+        false
+      )
+    );
+
     progress.value = withDelay(1000, withTiming(1, { duration: 1600, easing: Easing.out(Easing.cubic) }));
 
     const timer = setTimeout(() => {
@@ -94,6 +109,13 @@ export default function SplashScreen() {
     width: `${progress.value * 100}%`,
   }));
 
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: shimmerX.value * 140 },
+      { rotate: "20deg" },
+    ],
+  }));
+
   const letters = APP_NAME.split("");
 
   return (
@@ -111,6 +133,8 @@ export default function SplashScreen() {
             style={styles.logoImage}
             resizeMode="cover"
           />
+          {/* Shimmer sweep — diagonal light streak, like a reflection on a 3D surface */}
+          <ReAnimated.View style={[styles.shimmerStreak, shimmerStyle]} pointerEvents="none" />
         </ReAnimated.View>
 
         {/* App name — cascading letter-by-letter reveal */}
@@ -170,6 +194,12 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: "#00B4FF40",
   },
   logoImage: { width: "100%", height: "100%" },
+  shimmerStreak: {
+    position: "absolute",
+    top: -40, bottom: -40, left: -10,
+    width: 26,
+    backgroundColor: "rgba(255,255,255,0.35)",
+  },
   titleRow: { flexDirection: "row", marginBottom: 6 },
   title: {
     fontSize: 30, fontFamily: "Inter_700Bold",

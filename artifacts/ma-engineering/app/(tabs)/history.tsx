@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -17,6 +17,7 @@ import { useColors } from "@/hooks/useColors";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, updateDoc, doc, deleteDoc } from "firebase/firestore";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import SuccessBurst, { SuccessBurstHandle } from "@/components/SuccessBurst";
 
 interface Quote {
   id: string;
@@ -27,6 +28,8 @@ interface Quote {
   quotedAmount: number;
   quoteText: string;
   status: "pending" | "approved" | "rejected";
+  paymentStatus?: "unpaid" | "partial" | "paid";
+  amountPaid?: number;
   createdAt: any;
 }
 
@@ -46,6 +49,7 @@ export default function HistoryScreen() {
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [selected, setSelected] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
+  const burstRef = useRef<SuccessBurstHandle>(null);
 
   useEffect(() => {
     const q = query(collection(db, "quotes"), orderBy("createdAt", "desc"));
@@ -60,6 +64,16 @@ export default function HistoryScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await updateDoc(doc(db, "quotes", id), { status });
     setSelected(prev => prev?.id === id ? { ...prev, status } : prev);
+  }
+
+  async function markPaid(q: Quote) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await updateDoc(doc(db, "quotes", q.id), {
+      paymentStatus: "paid",
+      amountPaid: q.quotedAmount,
+    });
+    setSelected(prev => prev?.id === q.id ? { ...prev, paymentStatus: "paid", amountPaid: q.quotedAmount } : prev);
+    burstRef.current?.fire();
   }
 
   async function deleteQuote(id: string) {
@@ -82,8 +96,12 @@ export default function HistoryScreen() {
     }
     const phone = digits.length === 10 ? "91" + digits : digits;
     const r = await sendWhatsAppMessage(phone, msg);
-    if (r.success) Alert.alert("✅", "WhatsApp pe bhej diya!");
-    else Alert.alert("ℹ️", r.error ?? "Settings mein WA Token set karo, tab send hoga.");
+    if (r.success) {
+      burstRef.current?.fire();
+      Alert.alert("✅", "WhatsApp pe bhej diya!");
+    } else {
+      Alert.alert("ℹ️", r.error ?? "Settings mein WA Token set karo, tab send hoga.");
+    }
   }
 
   function fmt(n: number) {
@@ -125,6 +143,17 @@ export default function HistoryScreen() {
               <Feather name={sc.icon as any} size={9} color={sc.color} />
               <Text style={[styles.statusText, { color: sc.color }]}>{sc.label}</Text>
             </View>
+            {item.paymentStatus === "paid" ? (
+              <View style={[styles.statusPill, { backgroundColor: "#25D36620", marginTop: 4 }]}>
+                <Feather name="check-circle" size={9} color="#25D366" />
+                <Text style={[styles.statusText, { color: "#25D366" }]}>PAID</Text>
+              </View>
+            ) : item.status === "approved" ? (
+              <View style={[styles.statusPill, { backgroundColor: "#F59E0B20", marginTop: 4 }]}>
+                <Feather name="alert-circle" size={9} color="#F59E0B" />
+                <Text style={[styles.statusText, { color: "#F59E0B" }]}>PAYMENT DUE</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -141,6 +170,11 @@ export default function HistoryScreen() {
             {item.status !== "rejected" && (
               <TouchableOpacity style={[styles.quickBtn, { backgroundColor: "#EF444420" }]} onPress={() => updateStatus(item.id, "rejected")}>
                 <Feather name="x" size={11} color="#EF4444" />
+              </TouchableOpacity>
+            )}
+            {item.status === "approved" && item.paymentStatus !== "paid" && (
+              <TouchableOpacity style={[styles.quickBtn, { backgroundColor: "#F59E0B30" }]} onPress={() => markPaid(item)}>
+                <Feather name="dollar-sign" size={11} color="#F59E0B" />
               </TouchableOpacity>
             )}
             <TouchableOpacity style={[styles.quickBtn, { backgroundColor: "#25D36640" }]} onPress={() => sendViaWA(item)}>
@@ -235,6 +269,15 @@ export default function HistoryScreen() {
                 </View>
               </View>
 
+              {selected.status === "approved" && (
+                <View style={[styles.statusChip, { backgroundColor: selected.paymentStatus === "paid" ? "#25D36620" : "#F59E0B20", alignSelf: "flex-start" }]}>
+                  <Feather name={selected.paymentStatus === "paid" ? "check-circle" : "alert-circle"} size={14} color={selected.paymentStatus === "paid" ? "#25D366" : "#F59E0B"} />
+                  <Text style={[styles.statusChipText, { color: selected.paymentStatus === "paid" ? "#25D366" : "#F59E0B" }]}>
+                    {selected.paymentStatus === "paid" ? `Paid — ${fmt(selected.amountPaid ?? selected.quotedAmount)}` : "Payment Pending"}
+                  </Text>
+                </View>
+              )}
+
               <ScrollView style={[styles.quoteTextBox, { backgroundColor: colors.background, borderColor: colors.border }]} showsVerticalScrollIndicator={false}>
                 <Text style={[styles.quoteText, { color: colors.foreground }]}>{selected.quoteText}</Text>
               </ScrollView>
@@ -248,6 +291,12 @@ export default function HistoryScreen() {
                   <TouchableOpacity style={[styles.detailBtn, { backgroundColor: "#25D36620", borderColor: "#25D366" }]} onPress={() => updateStatus(selected.id, "approved")}>
                     <Feather name="check-circle" size={14} color="#25D366" />
                     <Text style={[styles.detailBtnText, { color: "#25D366" }]}>Approve</Text>
+                  </TouchableOpacity>
+                )}
+                {selected.status === "approved" && selected.paymentStatus !== "paid" && (
+                  <TouchableOpacity style={[styles.detailBtn, { backgroundColor: "#F59E0B20", borderColor: "#F59E0B" }]} onPress={() => markPaid(selected)}>
+                    <Feather name="dollar-sign" size={14} color="#F59E0B" />
+                    <Text style={[styles.detailBtnText, { color: "#F59E0B" }]}>Mark Paid</Text>
                   </TouchableOpacity>
                 )}
                 {selected.status !== "rejected" && (
@@ -265,6 +314,7 @@ export default function HistoryScreen() {
           )}
         </View>
       </Modal>
+      <SuccessBurst ref={burstRef} />
     </View>
   );
 }
