@@ -1,12 +1,6 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef } from "react";
-import {
-  Animated,
-  Dimensions,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import React, { useEffect } from "react";
+import { Dimensions, Image, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ReAnimated, {
   useSharedValue,
@@ -14,96 +8,149 @@ import ReAnimated, {
   withRepeat,
   withSequence,
   withTiming,
+  withSpring,
+  withDelay,
   Easing,
+  FadeIn,
+  FadeInDown,
 } from "react-native-reanimated";
 import GlowOrb from "@/components/GlowOrb";
 
 const { width } = Dimensions.get("window");
+const APP_NAME = "MA TITAN";
 
 export default function SplashScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const opacity = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.6)).current;
-  const titleY = useRef(new Animated.Value(20)).current;
-  const subtitleOpacity = useRef(new Animated.Value(0)).current;
+  // Logo: dramatic 3D flip-in (rotateY 100deg -> 0) with perspective +
+  // spring scale pop, then settles into a slow perpetual hover-spin.
+  const logoRotate = useSharedValue(100);
+  const logoScale = useSharedValue(0.3);
+  const logoOpacity = useSharedValue(0);
+  const idleSpin = useSharedValue(0);
+  const idleBob = useSharedValue(0);
+  const glowPulse = useSharedValue(0);
 
-  // Continuous 3D spin of the icon ring (perspective + rotateY) so it
-  // reads as a rotating badge with depth instead of a flat spinner.
-  const spin = useSharedValue(0);
-  const bob = useSharedValue(0);
-
-  useEffect(() => {
-    spin.value = withRepeat(
-      withTiming(360, { duration: 4200, easing: Easing.linear }),
-      -1,
-      false
-    );
-    bob.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.quad) }),
-        withTiming(0, { duration: 1400, easing: Easing.inOut(Easing.quad) })
-      ),
-      -1,
-      false
-    );
-  }, []);
-
-  const ringSpinStyle = useAnimatedStyle(() => ({
-    transform: [
-      { perspective: 900 },
-      { translateY: (bob.value - 0.5) * 10 },
-      { rotateY: `${spin.value}deg` },
-    ],
-  }));
+  // Fine-grained progress bar fill driven by a shared value for a
+  // buttery-smooth native-thread animation.
+  const progress = useSharedValue(0);
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 600, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 1, friction: 5, useNativeDriver: true }),
-    ]).start(() => {
-      Animated.parallel([
-        Animated.timing(titleY, { toValue: 0, duration: 500, delay: 100, useNativeDriver: true }),
-        Animated.timing(subtitleOpacity, { toValue: 1, duration: 600, delay: 300, useNativeDriver: true }),
-      ]).start();
+    logoOpacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
+    logoRotate.value = withTiming(0, { duration: 900, easing: Easing.out(Easing.exp) });
+    logoScale.value = withSpring(1, { damping: 9, stiffness: 90 }, () => {
+      idleSpin.value = withRepeat(
+        withTiming(360, { duration: 5000, easing: Easing.linear }),
+        -1,
+        false
+      );
+      idleBob.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.quad) }),
+          withTiming(0, { duration: 1500, easing: Easing.inOut(Easing.quad) })
+        ),
+        -1,
+        false
+      );
     });
+
+    glowPulse.value = withDelay(
+      900,
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0.3, { duration: 1100, easing: Easing.inOut(Easing.sin) })
+        ),
+        -1,
+        true
+      )
+    );
+
+    progress.value = withDelay(1000, withTiming(1, { duration: 1600, easing: Easing.out(Easing.cubic) }));
 
     const timer = setTimeout(() => {
       router.replace("/(tabs)");
-    }, 2800);
+    }, 3400);
     return () => clearTimeout(timer);
   }, []);
+
+  const logoStyle = useAnimatedStyle(() => ({
+    opacity: logoOpacity.value,
+    transform: [
+      { perspective: 1000 },
+      { translateY: (idleBob.value - 0.5) * 12 },
+      { rotateY: `${logoRotate.value + idleSpin.value}deg` },
+      { scale: logoScale.value },
+    ],
+  }));
+
+  const welcomeGlowStyle = useAnimatedStyle(() => ({
+    opacity: 0.5 + glowPulse.value * 0.5,
+    textShadowRadius: 10 + glowPulse.value * 16,
+  }));
+
+  const progressFillStyle = useAnimatedStyle(() => ({
+    width: `${progress.value * 100}%`,
+  }));
+
+  const letters = APP_NAME.split("");
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Ambient depth — soft drifting neon orbs behind everything */}
-      <GlowOrb color="#00B4FF" size={220} style={{ top: -60, left: -60 }} duration={5200} />
-      <GlowOrb color="#7B2FFF" size={180} style={{ bottom: -40, right: -50 }} duration={6400} driftX={26} driftY={16} />
-      <GlowOrb color="#00FFD1" size={140} style={{ top: "35%", right: -30 }} duration={4600} driftX={14} driftY={30} />
+      <GlowOrb color="#00B4FF" size={240} style={{ top: -70, left: -70 }} duration={5200} />
+      <GlowOrb color="#7B2FFF" size={190} style={{ bottom: -50, right: -60 }} duration={6400} driftX={26} driftY={16} />
+      <GlowOrb color="#00FFD1" size={150} style={{ top: "35%", right: -35 }} duration={4600} driftX={14} driftY={30} />
 
       <View style={styles.center}>
-        <Animated.View style={{ opacity, transform: [{ scale }] }}>
-          <ReAnimated.View style={[styles.iconRing, ringSpinStyle]}>
-            <Text style={styles.iconEmoji}>⚙️</Text>
-          </ReAnimated.View>
-        </Animated.View>
+        {/* Logo — real app icon, flips in with 3D depth then hovers */}
+        <ReAnimated.View style={[styles.logoRing, logoStyle]}>
+          <Image
+            source={require("../assets/images/icon.png")}
+            style={styles.logoImage}
+            resizeMode="cover"
+          />
+        </ReAnimated.View>
 
-        <Animated.Text style={[styles.title, { transform: [{ translateY: titleY }], opacity }]}>
-          MA TITAN
-        </Animated.Text>
+        {/* App name — cascading letter-by-letter reveal */}
+        <View style={styles.titleRow}>
+          {letters.map((ch, i) => (
+            <ReAnimated.Text
+              key={`${ch}-${i}`}
+              entering={FadeInDown.duration(450)
+                .delay(750 + i * 55)
+                .springify()
+                .damping(11)}
+              style={styles.title}
+            >
+              {ch === " " ? "\u00A0" : ch}
+            </ReAnimated.Text>
+          ))}
+        </View>
 
-        <Animated.Text style={[styles.subtitle, { opacity: subtitleOpacity }]}>
+        {/* Welcome — glowing pulse entrance */}
+        <ReAnimated.Text
+          entering={FadeIn.duration(700).delay(1250)}
+          style={[styles.welcome, welcomeGlowStyle]}
+        >
+          Welcome
+        </ReAnimated.Text>
+
+        <ReAnimated.Text
+          entering={FadeIn.duration(600).delay(1500)}
+          style={styles.subtitle}
+        >
           Powered by TITAN AI
-        </Animated.Text>
+        </ReAnimated.Text>
 
-        <Animated.View style={[styles.progressBg, { opacity: subtitleOpacity }]}>
-          <View style={[styles.progressFill, { width: width * 0.5 }]} />
-        </Animated.View>
+        <ReAnimated.View entering={FadeIn.duration(600).delay(1500)} style={styles.progressBg}>
+          <ReAnimated.View style={[styles.progressFill, progressFillStyle]} />
+        </ReAnimated.View>
 
-        <Animated.Text style={[styles.brand, { opacity: subtitleOpacity }]}>
+        <ReAnimated.Text entering={FadeIn.duration(600).delay(1650)} style={styles.brand}>
           MA ENGINEERING
-        </Animated.Text>
+        </ReAnimated.Text>
       </View>
     </View>
   );
@@ -112,19 +159,27 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#060610", overflow: "hidden" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  iconRing: {
-    width: 110, height: 110, borderRadius: 55,
+  logoRing: {
+    width: 120, height: 120, borderRadius: 30,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 26,
+    shadowColor: "#00B4FF", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.7, shadowRadius: 24,
+    elevation: 20,
+    overflow: "hidden",
     backgroundColor: "#0D0D2B",
     borderWidth: 2, borderColor: "#00B4FF40",
-    alignItems: "center", justifyContent: "center",
-    marginBottom: 24,
-    shadowColor: "#00B4FF", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.6, shadowRadius: 20,
-    elevation: 20,
   },
-  iconEmoji: { fontSize: 48 },
+  logoImage: { width: "100%", height: "100%" },
+  titleRow: { flexDirection: "row", marginBottom: 6 },
   title: {
-    fontSize: 32, fontFamily: "Inter_700Bold",
-    color: "#00B4FF", letterSpacing: 6, marginBottom: 8,
+    fontSize: 30, fontFamily: "Inter_700Bold",
+    color: "#00B4FF", letterSpacing: 4,
+  },
+  welcome: {
+    fontSize: 22, fontFamily: "Inter_700Bold",
+    color: "#00FFD1", letterSpacing: 3, marginTop: 4, marginBottom: 14,
+    textShadowColor: "#00FFD1",
+    textShadowOffset: { width: 0, height: 0 },
   },
   subtitle: {
     fontSize: 12, fontFamily: "Inter_400Regular",
