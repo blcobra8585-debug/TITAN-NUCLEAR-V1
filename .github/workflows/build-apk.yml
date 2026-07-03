@@ -63,17 +63,6 @@ jobs:
         working-directory: artifacts/ma-engineering/android
         run: chmod +x gradlew
 
-      - name: Resolve worklets-core ABSOLUTE path for pnpm
-        run: |
-          # Find react-native-worklets-core in pnpm store — must be absolute path for Gradle
-          WORKLETS_REL=$(find $(pwd)/node_modules -path "*/react-native-worklets-core/package.json" -not -path "*/.cache/*" 2>/dev/null | head -1)
-          if [ -z "$WORKLETS_REL" ]; then
-            WORKLETS_REL=$(find $(pwd)/artifacts/ma-engineering/node_modules -path "*/react-native-worklets-core/package.json" -not -path "*/.cache/*" 2>/dev/null | head -1)
-          fi
-          WORKLETS_ABS=$(dirname "$WORKLETS_REL")
-          echo "Resolved absolute worklets-core path: $WORKLETS_ABS"
-          echo "REACT_NATIVE_WORKLETS_CORE_DIR=$WORKLETS_ABS" >> $GITHUB_ENV
-
       - name: Build Debug APK
         working-directory: artifacts/ma-engineering/android
         run: ./gradlew assembleDebug --no-daemon -x lint --stacktrace
@@ -81,7 +70,6 @@ jobs:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx6g -Dorg.gradle.daemon=false"
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
           CMAKE_PATH: /usr/local/lib/android/sdk/cmake/3.31.3/bin
-          REACT_NATIVE_WORKLETS_CORE_DIR: ${{ env.REACT_NATIVE_WORKLETS_CORE_DIR }}
 
       - name: Find APK
         id: find_apk
@@ -122,8 +110,7 @@ jobs:
             4. Purani app pehle uninstall karo phir install karo
 
             ### 🔧 Is build mein kya hai:
-            - ✅ **CRASH FIX** — react-native-reanimated 3.19.5 → 4.x (Expo SDK 54 compatible)
-            - ✅ react-native-worklets-core added (reanimated 4.x peer dep)
+            - ✅ react-native-reanimated fixed to ~3.16.0 (Expo SDK 54 compatible)
             - ✅ expo prebuild --clean se fresh native Android code generated
             - ✅ Firebase guards — firebaseReady check in all Firestore calls
             - ✅ **Deal Pipeline Kanban** — Lead → Quoted → Negotiation → Won/Lost
