@@ -36,7 +36,8 @@
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.POST_NOTIFICATIONS"
       ],
-      "allowBackup": false
+      "allowBackup": false,
+      "newArchEnabled": true
     },
     "web": {
       "favicon": "./assets/images/icon.png"
