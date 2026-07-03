@@ -4,6 +4,7 @@ import firebaseRouter from "./firebase";
 import waWebRouter from "./waWeb";
 import botRouter from "./bot";
 import leadsRouter from "./leads";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use("/firebase", firebaseRouter);
 router.use("/wa", waWebRouter);
 router.use("/bot", botRouter);
 router.use("/leads", leadsRouter);
+router.use(settingsRouter);
 
 export default router;
