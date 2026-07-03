@@ -48,6 +48,24 @@ jobs:
           CI: 1
           EXPO_NO_DEPENDENCY_UPDATE: 1
 
+      - name: Inject REACT_NATIVE_WORKLETS_NODE_MODULES_DIR into app/build.gradle
+        run: |
+          # Find react-native-worklets absolute path in pnpm virtual store
+          WORKLETS_PKG=$(find $(pwd)/node_modules/.pnpm -path "*/react-native-worklets/package.json" -maxdepth 10 2>/dev/null | grep -v "worklets-core" | head -1)
+          WORKLETS_ABS=$(dirname "$WORKLETS_PKG")
+          echo "Found react-native-worklets at: $WORKLETS_ABS"
+
+          APP_GRADLE="artifacts/ma-engineering/android/app/build.gradle"
+          if [ -n "$WORKLETS_ABS" ] && [ -f "$APP_GRADLE" ]; then
+            # Prepend ext block at the top of app/build.gradle
+            sed -i "1s|^|ext {\n    REACT_NATIVE_WORKLETS_NODE_MODULES_DIR = \"$WORKLETS_ABS\"\n}\n|" "$APP_GRADLE"
+            echo "Injected REACT_NATIVE_WORKLETS_NODE_MODULES_DIR into $APP_GRADLE"
+            head -6 "$APP_GRADLE"
+          else
+            echo "ERROR: Could not find react-native-worklets or app/build.gradle"
+            exit 1
+          fi
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
@@ -63,25 +81,6 @@ jobs:
         working-directory: artifacts/ma-engineering/android
         run: chmod +x gradlew
 
-      - name: Patch reanimated build.gradle for pnpm monorepo
-        run: |
-          # Find reanimated build.gradle in pnpm store
-          REANIMATED_GRADLE=$(find $(pwd)/node_modules/.pnpm -path "*/react-native-reanimated/android/build.gradle" -maxdepth 10 2>/dev/null | head -1)
-          echo "Found reanimated build.gradle: $REANIMATED_GRADLE"
-
-          # Find worklets-core absolute path
-          WORKLETS_ABS=$(find $(pwd)/node_modules/.pnpm -path "*/react-native-worklets-core/package.json" -maxdepth 10 2>/dev/null | head -1 | xargs -I{} dirname {})
-          echo "Found worklets-core at: $WORKLETS_ABS"
-
-          if [ -n "$REANIMATED_GRADLE" ] && [ -n "$WORKLETS_ABS" ]; then
-            # Patch: inject env var check at top of resolveReactNativeWorkletsDirectory function
-            sed -i "s|def resolveReactNativeWorkletsDirectory() {|def resolveReactNativeWorkletsDirectory() {\n    def envDir = System.getenv(\"REACT_NATIVE_WORKLETS_CORE_DIR\")\n    if (envDir != null \&\& !envDir.isEmpty()) { println \"Using env REACT_NATIVE_WORKLETS_CORE_DIR: \" + envDir; return envDir }|" "$REANIMATED_GRADLE"
-            echo "Patched successfully"
-            echo "REACT_NATIVE_WORKLETS_CORE_DIR=$WORKLETS_ABS" >> $GITHUB_ENV
-          else
-            echo "WARNING: Could not find reanimated build.gradle or worklets-core"
-          fi
-
       - name: Build Debug APK
         working-directory: artifacts/ma-engineering/android
         run: ./gradlew assembleDebug --no-daemon -x lint --stacktrace
@@ -89,7 +88,6 @@ jobs:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx6g -Dorg.gradle.daemon=false"
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
           CMAKE_PATH: /usr/local/lib/android/sdk/cmake/3.31.3/bin
-          REACT_NATIVE_WORKLETS_CORE_DIR: ${{ env.REACT_NATIVE_WORKLETS_CORE_DIR }}
 
       - name: Find APK
         id: find_apk
