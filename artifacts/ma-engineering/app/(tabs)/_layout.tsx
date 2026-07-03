@@ -28,12 +28,12 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="index"       options={{ title: "Dashboard",  tabBarIcon: ({ color, focused }) => <Icon3D name="grid"           size={16} bgSize={32} color={color} glow={focused} /> }} />
       <Tabs.Screen name="chat"        options={{ title: "TITAN AI",   tabBarIcon: ({ color, focused }) => <Icon3D name="cpu"            size={16} bgSize={32} color={color} glow={focused} /> }} />
+      <Tabs.Screen name="pipeline"    options={{ title: "Pipeline",   tabBarIcon: ({ color, focused }) => <Icon3D name="columns"        size={16} bgSize={32} color={color} glow={focused} /> }} />
       <Tabs.Screen name="quote"       options={{ title: "Quote",      tabBarIcon: ({ color, focused }) => <Icon3D name="file-text"      size={16} bgSize={32} color={color} glow={focused} /> }} />
       <Tabs.Screen name="leads"       options={{ title: "Leads",      tabBarIcon: ({ color, focused }) => <Icon3D name="target"         size={16} bgSize={32} color={color} glow={focused} /> }} />
-      <Tabs.Screen name="recruitment" options={{ title: "Recruit",    tabBarIcon: ({ color, focused }) => <Icon3D name="users"          size={16} bgSize={32} color={color} glow={focused} /> }} />
       <Tabs.Screen name="whatsapp"    options={{ title: "WhatsApp",   tabBarIcon: ({ color, focused }) => <Icon3D name="message-circle" size={16} bgSize={32} color={color} glow={focused} /> }} />
       <Tabs.Screen name="clients"     options={{ title: "Clients",    tabBarIcon: ({ color, focused }) => <Icon3D name="briefcase"      size={16} bgSize={32} color={color} glow={focused} /> }} />
-      <Tabs.Screen name="history"     options={{ title: "History",    tabBarIcon: ({ color, focused }) => <Icon3D name="bar-chart-2"    size={16} bgSize={32} color={color} glow={focused} /> }} />
+      <Tabs.Screen name="recruitment" options={{ title: "Recruit",    tabBarIcon: ({ color, focused }) => <Icon3D name="users"          size={16} bgSize={32} color={color} glow={focused} /> }} />
       <Tabs.Screen name="admin"       options={{ title: "Admin",      tabBarIcon: ({ color, focused }) => <Icon3D name="shield"         size={16} bgSize={32} color={color} glow={focused} /> }} />
     </Tabs>
   );

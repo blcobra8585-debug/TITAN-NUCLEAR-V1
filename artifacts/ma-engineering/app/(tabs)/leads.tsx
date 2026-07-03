@@ -47,7 +47,7 @@ export default function LeadsScreen() {
   const [showAddLead, setShowAddLead] = useState(false);
   const [autoReplying, setAutoReplying] = useState(false);
   const [newLead, setNewLead] = useState({ name: "", phone: "", message: "", product: "", location: "" });
-  const [activeTab, setActiveTab] = useState<"all" | "unreplied" | "replied">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "unreplied" | "replied" | "ghost">("all");
   const unsubRef = useRef<(() => void) | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -182,8 +182,9 @@ export default function LeadsScreen() {
         `Client: ${lead.name}${lead.location ? ` (${lead.location})` : ""}\n` +
         `Message: "${lead.message}"${lead.product ? `\nProduct: ${lead.product}` : ""}\n\n` +
         `Write a short, professional WhatsApp reply in Hinglish (2-4 lines). Introduce MA Engineering, ask qualifying questions (tonnage? span? application?). Keep it warm and friendly.`;
+      const trustBadge = "\n\n✅ *MA Engineering* | 15+ Years | Zero-Accident Record | Pan-India Projects";
       const reply = await sendToLily(prompt);
-      await updateLeadInFirebase(lead.id, { replied: true, replyText: reply });
+      await updateLeadInFirebase(lead.id, { replied: true, replyText: reply + trustBadge });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
       Alert.alert("Error", e.message);
@@ -217,9 +218,26 @@ export default function LeadsScreen() {
     return new Date(ts).toLocaleDateString("en-IN");
   }
 
-  const filteredLeads = leads.filter((l) =>
-    activeTab === "all" ? true : activeTab === "unreplied" ? !l.replied : l.replied
-  );
+  function getDealTemp(ts: number): { emoji: string; label: string; color: string } {
+    const age = Date.now() - ts;
+    if (age < 86400000)      return { emoji: "🔥", label: "Hot",  color: "#FF4444" };
+    if (age < 3 * 86400000)  return { emoji: "⚡", label: "Warm", color: "#FF9900" };
+    return                          { emoji: "❄️", label: "Cold", color: "#00B4FF" };
+  }
+
+  function isGhostLead(lead: FirebaseLead): boolean {
+    return !lead.replied && (Date.now() - lead.timestamp) > 48 * 3600 * 1000;
+  }
+
+  const ghostCount = leads.filter(isGhostLead).length;
+
+  const filteredLeads = leads.filter((l) => {
+    if (activeTab === "all")      return true;
+    if (activeTab === "unreplied") return !l.replied;
+    if (activeTab === "replied")   return l.replied;
+    if (activeTab === "ghost")     return isGhostLead(l);
+    return true;
+  });
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -327,24 +345,25 @@ export default function LeadsScreen() {
 
         {/* Tab filter */}
         <View style={[styles.tabBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {(["all", "unreplied", "replied"] as const).map((t) => (
+          {([
+            { id: "all",      label: `All (${leads.length})` },
+            { id: "unreplied",label: `Pending (${leads.filter((l) => !l.replied).length})` },
+            { id: "replied",  label: `Done (${leads.filter((l) => l.replied).length})` },
+            { id: "ghost",    label: `👻 Ghost (${ghostCount})` },
+          ] as const).map((t) => (
             <TouchableOpacity
-              key={t}
+              key={t.id}
               style={[
                 styles.tabBtn,
                 {
-                  backgroundColor: activeTab === t ? `${colors.neonBlue}20` : "transparent",
-                  borderBottomColor: activeTab === t ? colors.neonBlue : "transparent",
+                  backgroundColor: activeTab === t.id ? `${t.id === "ghost" ? "#FF4444" : colors.neonBlue}20` : "transparent",
+                  borderBottomColor: activeTab === t.id ? (t.id === "ghost" ? "#FF4444" : colors.neonBlue) : "transparent",
                 },
               ]}
-              onPress={() => setActiveTab(t)}
+              onPress={() => setActiveTab(t.id)}
             >
-              <Text style={[styles.tabLabel, { color: activeTab === t ? colors.neonBlue : colors.mutedForeground }]}>
-                {t === "all"
-                  ? `All (${leads.length})`
-                  : t === "unreplied"
-                  ? `Pending (${leads.filter((l) => !l.replied).length})`
-                  : `Done (${leads.filter((l) => l.replied).length})`}
+              <Text style={[styles.tabLabel, { color: activeTab === t.id ? (t.id === "ghost" ? "#FF4444" : colors.neonBlue) : colors.mutedForeground }]}>
+                {t.label}
               </Text>
             </TouchableOpacity>
           ))}
@@ -378,7 +397,16 @@ export default function LeadsScreen() {
                     {lead.source}
                   </Text>
                 </View>
+                {(() => { const t = getDealTemp(lead.timestamp); return (
+                  <Text style={{ fontSize: 10, color: t.color, fontWeight: "700" }}>{t.emoji}{t.label}</Text>
+                ); })()}
                 <Text style={[styles.leadTime, { color: colors.mutedForeground }]}>{fmtTime(lead.timestamp)}</Text>
+                {isGhostLead(lead) && (
+                  <View style={[styles.repliedTag, { backgroundColor: "#FF444420" }]}>
+                    <Text style={{ fontSize: 10 }}>👻</Text>
+                    <Text style={[styles.repliedText, { color: "#FF4444" }]}>Ghost</Text>
+                  </View>
+                )}
                 {lead.replied && (
                   <View style={[styles.repliedTag, { backgroundColor: "#25D36620" }]}>
                     <Feather name="check" size={11} color="#25D366" />
