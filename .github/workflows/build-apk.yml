@@ -63,29 +63,16 @@ jobs:
         working-directory: artifacts/ma-engineering/android
         run: chmod +x gradlew
 
-      - name: Resolve worklets-core path for pnpm
+      - name: Resolve worklets-core ABSOLUTE path for pnpm
         run: |
-          WORKLETS_PATH=$(node -e "
-            const path = require('path');
-            const resolve = require('enhanced-resolve');
-            // Try direct resolution first
-            try {
-              const r = require.resolve('react-native-worklets-core/package.json', {
-                paths: [
-                  path.join(process.cwd(), 'artifacts/ma-engineering'),
-                  path.join(process.cwd(), 'node_modules'),
-                ]
-              });
-              console.log(path.dirname(r));
-            } catch(e) {
-              // Fallback: find in pnpm store
-              const { execSync } = require('child_process');
-              const found = execSync('find node_modules -name \"react-native-worklets-core\" -maxdepth 6 -type d 2>/dev/null | grep -v \".cache\" | head -1').toString().trim();
-              console.log(found || '');
-            }
-          " 2>/dev/null || find . -path "*/react-native-worklets-core/package.json" -not -path "*/.cache/*" | head -1 | xargs dirname)
-          echo "Worklets core path: $WORKLETS_PATH"
-          echo "REACT_NATIVE_WORKLETS_CORE_DIR=$WORKLETS_PATH" >> $GITHUB_ENV
+          # Find react-native-worklets-core in pnpm store — must be absolute path for Gradle
+          WORKLETS_REL=$(find $(pwd)/node_modules -path "*/react-native-worklets-core/package.json" -not -path "*/.cache/*" 2>/dev/null | head -1)
+          if [ -z "$WORKLETS_REL" ]; then
+            WORKLETS_REL=$(find $(pwd)/artifacts/ma-engineering/node_modules -path "*/react-native-worklets-core/package.json" -not -path "*/.cache/*" 2>/dev/null | head -1)
+          fi
+          WORKLETS_ABS=$(dirname "$WORKLETS_REL")
+          echo "Resolved absolute worklets-core path: $WORKLETS_ABS"
+          echo "REACT_NATIVE_WORKLETS_CORE_DIR=$WORKLETS_ABS" >> $GITHUB_ENV
 
       - name: Build Debug APK
         working-directory: artifacts/ma-engineering/android
