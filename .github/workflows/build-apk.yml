@@ -42,10 +42,11 @@ jobs:
 
       - name: Expo Prebuild (Android)
         working-directory: artifacts/ma-engineering
-        run: pnpm exec expo prebuild --platform android --clean
+        run: pnpm exec expo prebuild --platform android --clean --no-install
         env:
           EXPO_NO_DOTENV: 1
           CI: 1
+          EXPO_NO_DEPENDENCY_UPDATE: 1
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
