@@ -1,6 +1,6 @@
 kind = "web"
-previewPath = "/wa-dashboard/"
-title = "MA TITAN — WhatsApp Business Dashboard"
+previewPath = "/"
+title = "WA Dashboard"
 version = "1.0.0"
 id = "artifacts/wa-dashboard"
 router = "path"
@@ -11,7 +11,7 @@ version = "1.0.0"
 
 [[services]]
 name = "web"
-paths = [ "/wa-dashboard/" ]
+paths = [ "/" ]
 localPort = 19904
 
 [services.development]
@@ -28,4 +28,4 @@ to = "/index.html"
 
 [services.env]
 PORT = "19904"
-BASE_PATH = "/wa-dashboard/"
+BASE_PATH = "/"

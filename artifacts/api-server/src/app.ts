@@ -30,8 +30,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Fix #11: require a shared secret (x-api-key) on all mutating/data routes.
-// Health check stays public for uptime monitors/load balancers.
 app.use("/api", requireApiKey, router);
 
 export default app;
