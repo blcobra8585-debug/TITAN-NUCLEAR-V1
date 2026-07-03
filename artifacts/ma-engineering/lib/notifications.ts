@@ -74,3 +74,38 @@ export function startBotReplyPolling(serverUrl: string): void {
 export function stopBotReplyPolling(): void {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
+
+/**
+ * Schedules a local push notification for a future date — used for
+ * AMC (annual maintenance) reminders and client follow-up reminders.
+ * Returns the notification id (or null if scheduling failed/unsupported),
+ * so callers can persist it and cancel later if the reminder is rescheduled.
+ */
+export async function scheduleReminder(
+  title: string,
+  body: string,
+  date: Date
+): Promise<string | null> {
+  try {
+    if (Platform.OS === "web") return null;
+    if (date.getTime() <= Date.now()) return null;
+    const Notifications = await import("expo-notifications");
+    const granted = await requestNotificationPermission();
+    if (!granted) return null;
+    const id = await Notifications.scheduleNotificationAsync({
+      content: { title, body, sound: true },
+      trigger: { type: "date", date } as any,
+    });
+    return id;
+  } catch {
+    return null;
+  }
+}
+
+export async function cancelReminder(id: string): Promise<void> {
+  try {
+    if (Platform.OS === "web" || !id) return;
+    const Notifications = await import("expo-notifications");
+    await Notifications.cancelScheduledNotificationAsync(id);
+  } catch {}
+}

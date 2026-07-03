@@ -9,6 +9,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { useTheme } from "@/context/ThemeContext";
 import { checkForUpdate } from "@/lib/autoUpdate";
 import { getLastHuntTime } from "@/lib/autoLeadBot";
 import { getLastRecruitmentRun } from "@/lib/recruitmentBot";
@@ -16,6 +17,7 @@ import { runDiagnostics } from "@/lib/autoHeal";
 import { hasPIN, setPIN, removePIN, getSecurityStatus } from "@/lib/security";
 import { resetAllAIChats } from "@/lib/multiAI";
 import { timeoutSignal } from "@/lib/timeout";
+import Icon3D from "@/components/Icon3D";
 
 interface ApiKeyField { label: string; storageKey: string; color: string; icon: string; placeholder: string; freeHint?: string; }
 
@@ -41,6 +43,7 @@ export default function AdminScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { geminiKey, setGeminiKey, waToken, setWaToken, wabaId, setWabaId, elevenLabsKey, setElevenLabsKey, serverUrl, setServerUrl } = useApp();
+  const { themeMode, toggleTheme, language, setLanguage } = useTheme();
 
   const [keyValues, setKeyValues] = useState<Record<string, string>>({});
   const [showKeys, setShowKeys] = useState(false);
@@ -159,9 +162,7 @@ export default function AdminScreen() {
 
       {/* Profile Card */}
       <View style={[styles.card, { borderColor: `${colors.accent}50` }]}>
-        <View style={[styles.avatar, { backgroundColor: `${colors.accent}20` }]}>
-          <Feather name="shield" size={26} color={colors.accent} />
-        </View>
+        <Icon3D name="shield" size={24} bgSize={48} color={colors.accent} glow />
         <View style={{ flex: 1, marginLeft: 14 }}>
           <Text style={[styles.adminName, { color: colors.foreground }]}>Suhan Siddiqui</Text>
           <Text style={[styles.adminSub, { color: colors.mutedForeground }]}>Master Admin • MA Engineering</Text>
@@ -218,6 +219,35 @@ export default function AdminScreen() {
             </View>
           </View>
         ))}
+      </View>
+
+      {/* Appearance & Language */}
+      <View style={[styles.section, { borderColor: `${colors.neonPurple}30` }]}>
+        <Text style={[styles.sectionTitle, { color: colors.neonPurple }]}>🎨 APPEARANCE & LANGUAGE</Text>
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.switchLabel, { color: colors.foreground }]}>Bright Theme</Text>
+            <Text style={[styles.switchSub, { color: colors.mutedForeground }]}>{themeMode === "bright" ? "Light mode ON" : "Neon Dark mode ON"}</Text>
+          </View>
+          <Switch value={themeMode === "bright"} onValueChange={() => { Haptics.selectionAsync(); toggleTheme(); }}
+            trackColor={{ false: colors.border, true: `${colors.neonPurple}60` }}
+            thumbColor={themeMode === "bright" ? colors.neonPurple : colors.mutedForeground} />
+        </View>
+        <View style={styles.btnRow}>
+          <TouchableOpacity
+            style={[styles.outlineBtn, { borderColor: colors.neonBlue, backgroundColor: language === "hi" ? `${colors.neonBlue}20` : "transparent" }]}
+            onPress={() => { Haptics.selectionAsync(); setLanguage("hi"); }}>
+            <Icon3D name="message-square" size={12} bgSize={22} color={colors.neonBlue} />
+            <Text style={[styles.outlineBtnText, { color: colors.neonBlue }]}>Hinglish</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.outlineBtn, { borderColor: colors.neonCyan, backgroundColor: language === "en" ? `${colors.neonCyan}20` : "transparent" }]}
+            onPress={() => { Haptics.selectionAsync(); setLanguage("en"); }}>
+            <Icon3D name="globe" size={12} bgSize={22} color={colors.neonCyan} />
+            <Text style={[styles.outlineBtnText, { color: colors.neonCyan }]}>English</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={[styles.sectionSub, { color: colors.mutedForeground }]}>Language WhatsApp quotes/invoices ke messages control karta hai.</Text>
       </View>
 
       {/* Security */}

@@ -9,15 +9,21 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/context/ThemeContext";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, updateDoc, doc, deleteDoc } from "firebase/firestore";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendWhatsAppMessage, buildInvoiceMessage } from "@/lib/whatsapp";
+import { generateFollowUp, generateNegotiationReply } from "@/lib/gemini";
+import { updateQuoteNotes, updateQuoteReferral, setQuoteAmcDate, markQuoteInvoiced } from "@/lib/firebaseService";
+import { scheduleReminder } from "@/lib/notifications";
 import SuccessBurst, { SuccessBurstHandle } from "@/components/SuccessBurst";
+import Icon3D from "@/components/Icon3D";
 
 interface Quote {
   id: string;
@@ -31,6 +37,12 @@ interface Quote {
   paymentStatus?: "unpaid" | "partial" | "paid";
   amountPaid?: number;
   createdAt: any;
+  leadSource?: string;
+  referredBy?: string;
+  notes?: string;
+  amcDate?: string;
+  invoiced?: boolean;
+  invoiceNumber?: string;
 }
 
 const STATUS_CONFIG = {
@@ -44,12 +56,24 @@ export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+  const { language } = useTheme();
 
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [selected, setSelected] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
   const burstRef = useRef<SuccessBurstHandle>(null);
+
+  const [notesDraft, setNotesDraft] = useState("");
+  const [amcDraft, setAmcDraft] = useState("");
+  const [aiBusy, setAiBusy] = useState<"followup" | "negotiate" | "invoice" | null>(null);
+  const [negotiateModal, setNegotiateModal] = useState(false);
+  const [clientOffer, setClientOffer] = useState("");
+
+  useEffect(() => {
+    setNotesDraft(selected?.notes ?? "");
+    setAmcDraft(selected?.amcDate ?? "");
+  }, [selected?.id]);
 
   useEffect(() => {
     const q = query(collection(db, "quotes"), orderBy("createdAt", "desc"));
@@ -101,6 +125,104 @@ export default function HistoryScreen() {
       Alert.alert("✅", "WhatsApp pe bhej diya!");
     } else {
       Alert.alert("ℹ️", r.error ?? "Settings mein WA Token set karo, tab send hoga.");
+    }
+  }
+
+  function getPhone(q: Quote): string | null {
+    const digits = (q.clientPhone ?? "").replace(/\D/g, "");
+    if (digits.length < 10) return null;
+    return digits.length === 10 ? "91" + digits : digits;
+  }
+
+  async function saveNotes(q: Quote) {
+    Haptics.selectionAsync();
+    await updateQuoteNotes(q.id, notesDraft.trim());
+    setSelected(prev => prev?.id === q.id ? { ...prev, notes: notesDraft.trim() } : prev);
+    Alert.alert("✅", "Notes saved.");
+  }
+
+  async function saveAmcDate(q: Quote) {
+    if (!amcDraft.trim()) return;
+    Haptics.selectionAsync();
+    await setQuoteAmcDate(q.id, amcDraft.trim());
+    setSelected(prev => prev?.id === q.id ? { ...prev, amcDate: amcDraft.trim() } : prev);
+    const d = new Date(amcDraft.trim());
+    if (!isNaN(d.getTime())) {
+      await scheduleReminder("AMC Reminder", `${q.clientName} ka AMC due hai — ${q.projectType}`, d);
+    }
+    Alert.alert("✅", "AMC date set — reminder scheduled.");
+  }
+
+  async function generateInvoice(q: Quote) {
+    const phone = getPhone(q);
+    if (!phone) {
+      Alert.alert("Phone Missing", "Client ka phone number missing hai.");
+      return;
+    }
+    setAiBusy("invoice");
+    const invoiceNumber = `INV-${q.id.slice(0, 6).toUpperCase()}`;
+    const msg = buildInvoiceMessage({
+      client: q.clientName,
+      project: q.projectType,
+      invoiceNumber,
+      amount: q.quotedAmount,
+      amountPaid: q.amountPaid ?? 0,
+      lang: language,
+    });
+    await markQuoteInvoiced(q.id, invoiceNumber);
+    setSelected(prev => prev?.id === q.id ? { ...prev, invoiced: true, invoiceNumber } : prev);
+    const r = await sendWhatsAppMessage(phone, msg);
+    setAiBusy(null);
+    if (r.success) {
+      burstRef.current?.fire();
+      Alert.alert("✅", "Invoice generate karke WhatsApp pe bhej diya!");
+    } else {
+      Alert.alert("ℹ️", "Invoice save ho gaya, lekin WhatsApp send fail hua: " + (r.error ?? ""));
+    }
+  }
+
+  async function sendAiFollowUp(q: Quote) {
+    const phone = getPhone(q);
+    if (!phone) {
+      Alert.alert("Phone Missing", "Client ka phone number missing hai.");
+      return;
+    }
+    setAiBusy("followup");
+    const daysSince = q.createdAt?.toDate
+      ? Math.floor((Date.now() - q.createdAt.toDate().getTime()) / 86400000)
+      : 0;
+    const msg = await generateFollowUp({ client: q.clientName, project: q.projectType, daysSinceQuote: daysSince, status: q.status });
+    const r = await sendWhatsAppMessage(phone, msg);
+    setAiBusy(null);
+    if (r.success) {
+      burstRef.current?.fire();
+      Alert.alert("✅", "AI follow-up bhej diya!");
+    } else {
+      Alert.alert("ℹ️", r.error ?? "WhatsApp send failed.");
+    }
+  }
+
+  async function sendNegotiationReply(q: Quote) {
+    if (!clientOffer.trim()) {
+      Alert.alert("Zaroori", "Client ka offer likhein.");
+      return;
+    }
+    const phone = getPhone(q);
+    if (!phone) {
+      Alert.alert("Phone Missing", "Client ka phone number missing hai.");
+      return;
+    }
+    setAiBusy("negotiate");
+    const msg = await generateNegotiationReply({ client: q.clientName, project: q.projectType, quotedAmount: q.quotedAmount, clientOffer: clientOffer.trim() });
+    const r = await sendWhatsAppMessage(phone, msg);
+    setAiBusy(null);
+    setNegotiateModal(false);
+    setClientOffer("");
+    if (r.success) {
+      burstRef.current?.fire();
+      Alert.alert("✅", "Negotiation reply bhej diya!");
+    } else {
+      Alert.alert("ℹ️", r.error ?? "WhatsApp send failed.");
     }
   }
 
@@ -282,6 +404,77 @@ export default function HistoryScreen() {
                 <Text style={[styles.quoteText, { color: colors.foreground }]}>{selected.quoteText}</Text>
               </ScrollView>
 
+              {/* CRM: source / referral */}
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={[styles.crmChip, { backgroundColor: `${colors.neonBlue}10`, borderColor: `${colors.neonBlue}30` }]}>
+                  <Icon3D name="tag" size={12} bgSize={22} color={colors.neonBlue} />
+                  <Text style={[styles.crmChipText, { color: colors.neonBlue }]}>{selected.leadSource ?? "Direct"}</Text>
+                </View>
+                {!!selected.referredBy && (
+                  <View style={[styles.crmChip, { backgroundColor: `${colors.neonCyan}10`, borderColor: `${colors.neonCyan}30` }]}>
+                    <Icon3D name="user-plus" size={12} bgSize={22} color={colors.neonCyan} />
+                    <Text style={[styles.crmChipText, { color: colors.neonCyan }]}>Ref: {selected.referredBy}</Text>
+                  </View>
+                )}
+                {selected.invoiced && (
+                  <View style={[styles.crmChip, { backgroundColor: "#25D36610", borderColor: "#25D36630" }]}>
+                    <Icon3D name="file-text" size={12} bgSize={22} color="#25D366" />
+                    <Text style={[styles.crmChipText, { color: "#25D366" }]}>{selected.invoiceNumber}</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* CRM Notes editor */}
+              <View style={[styles.notesBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[styles.crmLabel, { color: colors.mutedForeground }]}>CRM NOTES</Text>
+                <TextInput
+                  style={[styles.notesInput, { color: colors.foreground }]}
+                  placeholder="Site details, special requests..."
+                  placeholderTextColor={colors.mutedForeground}
+                  value={notesDraft}
+                  onChangeText={setNotesDraft}
+                  multiline
+                />
+                <TouchableOpacity style={[styles.saveMini, { backgroundColor: `${colors.neonBlue}20` }]} onPress={() => saveNotes(selected)}>
+                  <Text style={[styles.saveMiniText, { color: colors.neonBlue }]}>Save Notes</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* AMC Date */}
+              <View style={[styles.notesBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[styles.crmLabel, { color: colors.mutedForeground }]}>AMC / FOLLOW-UP DATE (YYYY-MM-DD)</Text>
+                <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                  <TextInput
+                    style={[styles.notesInput, { color: colors.foreground, flex: 1 }]}
+                    placeholder="2026-08-15"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={amcDraft}
+                    onChangeText={setAmcDraft}
+                  />
+                  <TouchableOpacity style={[styles.saveMini, { backgroundColor: `${colors.neonCyan}20` }]} onPress={() => saveAmcDate(selected)}>
+                    <Text style={[styles.saveMiniText, { color: colors.neonCyan }]}>Set</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* AI Actions */}
+              <View style={styles.detailActions}>
+                <TouchableOpacity style={[styles.detailBtn, { backgroundColor: "#8B5CF620", borderColor: "#8B5CF6" }]} onPress={() => sendAiFollowUp(selected)} disabled={aiBusy === "followup"}>
+                  <Icon3D name="send" size={12} bgSize={22} color="#8B5CF6" />
+                  <Text style={[styles.detailBtnText, { color: "#8B5CF6" }]}>{aiBusy === "followup" ? "..." : "AI Follow-up"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.detailBtn, { backgroundColor: "#F59E0B20", borderColor: "#F59E0B" }]} onPress={() => setNegotiateModal(true)}>
+                  <Icon3D name="repeat" size={12} bgSize={22} color="#F59E0B" />
+                  <Text style={[styles.detailBtnText, { color: "#F59E0B" }]}>Negotiate</Text>
+                </TouchableOpacity>
+                {selected.status === "approved" && (
+                  <TouchableOpacity style={[styles.detailBtn, { backgroundColor: "#25D36620", borderColor: "#25D366" }]} onPress={() => generateInvoice(selected)} disabled={aiBusy === "invoice"}>
+                    <Icon3D name="file-plus" size={12} bgSize={22} color="#25D366" />
+                    <Text style={[styles.detailBtnText, { color: "#25D366" }]}>{aiBusy === "invoice" ? "..." : "Invoice"}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
               <View style={styles.detailActions}>
                 <TouchableOpacity style={[styles.detailBtn, { backgroundColor: "#25D36620", borderColor: "#25D366" }]} onPress={() => sendViaWA(selected)}>
                   <Feather name="message-circle" size={14} color="#25D366" />
@@ -314,6 +507,42 @@ export default function HistoryScreen() {
           )}
         </View>
       </Modal>
+
+      {/* Negotiation Modal */}
+      <Modal visible={negotiateModal} transparent animationType="slide" onRequestClose={() => setNegotiateModal(false)}>
+        <View style={styles.overlay}>
+          <View style={[styles.detailCard, { backgroundColor: colors.card, borderColor: `${colors.neonBlue}30`, maxHeight: undefined }]}>
+            <View style={styles.detailHeader}>
+              <Text style={[styles.detailClient, { color: colors.foreground }]}>AI Negotiation Reply</Text>
+              <TouchableOpacity onPress={() => setNegotiateModal(false)}>
+                <Feather name="x" size={20} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.detailProject, { color: colors.mutedForeground }]}>
+              Client ka counter-offer ya sawaal likhein, Lily ek smart reply banayegi:
+            </Text>
+            <View style={[styles.notesBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <TextInput
+                style={[styles.notesInput, { color: colors.foreground }]}
+                placeholder="e.g. Client bol raha hai 10% discount chahiye"
+                placeholderTextColor={colors.mutedForeground}
+                value={clientOffer}
+                onChangeText={setClientOffer}
+                multiline
+              />
+            </View>
+            <TouchableOpacity
+              style={[styles.detailBtn, { backgroundColor: "#F59E0B20", borderColor: "#F59E0B", flex: 0, paddingVertical: 14 }]}
+              onPress={() => selected && sendNegotiationReply(selected)}
+              disabled={aiBusy === "negotiate"}
+            >
+              <Icon3D name="send" size={14} bgSize={26} color="#F59E0B" />
+              <Text style={[styles.detailBtnText, { color: "#F59E0B" }]}>{aiBusy === "negotiate" ? "Sending..." : "Generate & Send"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <SuccessBurst ref={burstRef} />
     </View>
   );
@@ -362,4 +591,11 @@ const styles = StyleSheet.create({
   detailActions: { flexDirection: "row", gap: 8 },
   detailBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: 12, borderWidth: 1, paddingVertical: 10 },
   detailBtnText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  crmChip: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 20, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6 },
+  crmChipText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  notesBox: { borderRadius: 12, borderWidth: 1, padding: 12, gap: 8 },
+  crmLabel: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  notesInput: { fontSize: 12, fontFamily: "Inter_400Regular", minHeight: 36 },
+  saveMini: { alignSelf: "flex-start", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
+  saveMiniText: { fontSize: 10, fontFamily: "Inter_700Bold" },
 });

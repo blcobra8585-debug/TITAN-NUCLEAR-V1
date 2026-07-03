@@ -17,9 +17,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { generateQuote } from "@/lib/gemini";
 import { saveQuote } from "@/lib/firebaseService";
-import { sendWhatsAppMessage, buildQuoteMessage } from "@/lib/whatsapp";
+import { sendWhatsAppMessage, buildQuoteMessage, buildQuoteMessageLang } from "@/lib/whatsapp";
 import { useApp } from "@/context/AppContext";
+import { useTheme } from "@/context/ThemeContext";
 import SuccessBurst, { SuccessBurstHandle } from "@/components/SuccessBurst";
+import Icon3D from "@/components/Icon3D";
 
 const PROJECTS = [
   "EOT Crane Installation",
@@ -30,11 +32,21 @@ const PROJECTS = [
   "Steel Structure Erection",
 ];
 
+const LEAD_SOURCES = ["Direct", "IndiaMART", "Referral", "WhatsApp", "Website", "Cold Call"];
+
+interface ToneTemplate { key: string; label: string; icon: string; suffix: string; }
+const TONE_TEMPLATES: ToneTemplate[] = [
+  { key: "formal",   label: "Formal",    icon: "briefcase", suffix: "" },
+  { key: "friendly", label: "Friendly",  icon: "smile",     suffix: "\n\nP.S. Koi bhi sawaal ho, bina hesitate call kariye — hum hamesha ready hain! 😊" },
+  { key: "discount", label: "Early-Bird", icon: "percent",  suffix: "\n\n🎁 *Early-Bird Offer*: 7 din ke andar confirm karo aur 3% extra discount pao!" },
+];
+
 export default function QuoteScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { refreshRevenue } = useApp();
 
+  const { language } = useTheme();
   const [client, setClient] = useState("");
   const [phone, setPhone] = useState("");
   const [tons, setTons] = useState("");
@@ -42,6 +54,10 @@ export default function QuoteScreen() {
   const [quote, setQuote] = useState("");
   const [loading, setLoading] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [leadSource, setLeadSource] = useState(LEAD_SOURCES[0]);
+  const [referredBy, setReferredBy] = useState("");
+  const [notes, setNotes] = useState("");
+  const [tone, setTone] = useState<ToneTemplate>(TONE_TEMPLATES[0]);
 
   const [waModal, setWaModal] = useState(false);
   const [clientPhone, setClientPhone] = useState("");
@@ -66,14 +82,18 @@ export default function QuoteScreen() {
     setLoading(true);
     setQuote("");
     const result = await generateQuote(client, project, parseFloat(tons));
-    setQuote(result);
+    const finalQuote = result + tone.suffix;
+    setQuote(finalQuote);
     const saved = await saveQuote({
       clientName: client,
       clientPhone: phone.trim(),
       projectType: project,
       tonnage: parseFloat(tons),
       quotedAmount: quotedCost,
-      quoteText: result,
+      quoteText: finalQuote,
+      leadSource,
+      referredBy: referredBy.trim(),
+      notes: notes.trim(),
     }).then(() => true).catch(() => false);
     await refreshRevenue();
     setLoading(false);
@@ -93,7 +113,9 @@ export default function QuoteScreen() {
     }
     setWaSending(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const msg = buildQuoteMessage(client, project, quote);
+    const msg = language === "en"
+      ? buildQuoteMessageLang({ client, project, tons, cost: quotedCost }, "en")
+      : buildQuoteMessage(client, project, quote);
     const result = await sendWhatsAppMessage(clientPhone, msg);
     setWaSending(false);
     setWaModal(false);
@@ -193,6 +215,61 @@ export default function QuoteScreen() {
             value={tons}
             onChangeText={setTons}
             keyboardType="numeric"
+          />
+        </View>
+
+        {/* Lead Source */}
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>LEAD SOURCE</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {LEAD_SOURCES.map((s) => (
+            <TouchableOpacity
+              key={s}
+              style={[styles.chip, { borderColor: colors.neonBlue, backgroundColor: s === leadSource ? `${colors.neonBlue}20` : "transparent" }]}
+              onPress={() => { Haptics.selectionAsync(); setLeadSource(s); }}
+            >
+              <Text style={[styles.chipText, { color: colors.neonBlue }]}>{s}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {leadSource === "Referral" && (
+          <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="user-plus" size={18} color={colors.neonBlue} />
+            <TextInput
+              style={[styles.textInput, { color: colors.foreground }]}
+              placeholder="Referred By (naam)"
+              placeholderTextColor={colors.mutedForeground}
+              value={referredBy}
+              onChangeText={setReferredBy}
+            />
+          </View>
+        )}
+
+        {/* Quote Tone / Template */}
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>QUOTE TEMPLATE</Text>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {TONE_TEMPLATES.map((t) => (
+            <TouchableOpacity
+              key={t.key}
+              style={[styles.toneCard, { borderColor: colors.neonCyan, backgroundColor: t.key === tone.key ? `${colors.neonCyan}20` : colors.card }]}
+              onPress={() => { Haptics.selectionAsync(); setTone(t); }}
+            >
+              <Icon3D name={t.icon as any} color={colors.neonCyan} size={14} bgSize={30} glow={t.key === tone.key} />
+              <Text style={[styles.toneText, { color: colors.neonCyan }]}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* CRM Notes */}
+        <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border, alignItems: "flex-start" }]}>
+          <Feather name="edit-3" size={18} color={colors.neonBlue} style={{ marginTop: 2 }} />
+          <TextInput
+            style={[styles.textInput, { color: colors.foreground, minHeight: 40 }]}
+            placeholder="CRM Notes (optional — site details, special requests...)"
+            placeholderTextColor={colors.mutedForeground}
+            value={notes}
+            onChangeText={setNotes}
+            multiline
           />
         </View>
 
@@ -335,4 +412,8 @@ const styles = StyleSheet.create({
   waPreview: { padding: 12, borderRadius: 10, borderWidth: 1 },
   waPreviewLabel: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 1, marginBottom: 6 },
   waPreviewText: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  chipText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  toneCard: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6, padding: 12, borderRadius: 14, borderWidth: 1 },
+  toneText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
 });

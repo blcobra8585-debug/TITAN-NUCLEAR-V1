@@ -39,14 +39,41 @@ export async function saveQuote(data: {
   tonnage: number;
   quotedAmount: number;
   quoteText: string;
+  leadSource?: string;
+  referredBy?: string;
+  notes?: string;
 }) {
   await addDoc(collection(db, "quotes"), {
     ...data,
     status: "pending",
     paymentStatus: "unpaid",
+    invoiced: false,
+    notes: data.notes ?? "",
+    referredBy: data.referredBy ?? "",
+    leadSource: data.leadSource ?? "Direct",
     timestamp: serverTimestamp(),
     createdAt: serverTimestamp(),
   });
+}
+
+export async function updateQuoteNotes(docId: string, notes: string) {
+  await updateDoc(doc(db, "quotes", docId), { notes });
+}
+
+export async function updateQuoteReferral(docId: string, referredBy: string) {
+  await updateDoc(doc(db, "quotes", docId), { referredBy });
+}
+
+export async function setQuoteAmcDate(docId: string, amcDate: string) {
+  await updateDoc(doc(db, "quotes", docId), { amcDate });
+}
+
+export async function setQuoteFollowUpDate(docId: string, followUpDate: string) {
+  await updateDoc(doc(db, "quotes", docId), { followUpDate });
+}
+
+export async function markQuoteInvoiced(docId: string, invoiceNumber: string) {
+  await updateDoc(doc(db, "quotes", docId), { invoiced: true, invoiceNumber, invoicedAt: serverTimestamp() });
 }
 
 export async function getQuotes() {

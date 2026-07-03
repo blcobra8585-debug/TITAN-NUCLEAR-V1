@@ -87,3 +87,69 @@ Koi sawaal ho to call karein:
 
 _Powered by TITAN AI_`;
 }
+
+export type QuoteLanguage = "hi" | "en";
+
+/**
+ * Multi-language variant of the quote message. "hi" keeps the existing
+ * Hinglish tone used everywhere else in the app; "en" sends a fully
+ * professional English version for clients who prefer it.
+ */
+export function buildQuoteMessageLang(
+  params: { client: string; project: string; tons: string | number; cost: number },
+  lang: QuoteLanguage = "hi"
+): string {
+  const { client, project, tons, cost } = params;
+  if (lang === "en") {
+    return `🏗️ *MA Engineering — Project Quote*
+
+Dear ${client},
+
+Thank you for considering MA Engineering for your *${project}* project.
+
+- Lifting Capacity: ${tons} tons
+- Estimated Cost: ₹${cost.toLocaleString("en-IN")}
+
+Please feel free to reach out with any questions.
+
+📞 MA Engineering Team
+_Powered by TITAN AI_`;
+  }
+  return buildQuoteMessage({ client, project, tons: String(tons), cost });
+}
+
+export function buildInvoiceMessage(params: {
+  client: string;
+  project: string;
+  invoiceNumber: string;
+  amount: number;
+  amountPaid?: number;
+  lang?: QuoteLanguage;
+}): string {
+  const { client, project, invoiceNumber, amount, amountPaid = 0, lang = "hi" } = params;
+  const balance = Math.max(amount - amountPaid, 0);
+  if (lang === "en") {
+    return `🧾 *MA Engineering — Invoice #${invoiceNumber}*
+
+Dear ${client},
+Project: *${project}*
+
+Total Amount: ₹${amount.toLocaleString("en-IN")}
+Paid: ₹${amountPaid.toLocaleString("en-IN")}
+Balance Due: ₹${balance.toLocaleString("en-IN")}
+
+Thank you for your business!
+📞 MA Engineering Team`;
+  }
+  return `🧾 *MA Engineering — Invoice #${invoiceNumber}*
+
+Namaste ${client}!
+Project: *${project}*
+
+Total Amount: ₹${amount.toLocaleString("en-IN")}
+Paid: ₹${amountPaid.toLocaleString("en-IN")}
+Balance Due: ₹${balance.toLocaleString("en-IN")}
+
+Dhanyawaad aapke business ke liye!
+📞 MA Engineering Team`;
+}

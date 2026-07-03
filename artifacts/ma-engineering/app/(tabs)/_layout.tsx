@@ -1,8 +1,8 @@
-import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import Icon3D from "@/components/Icon3D";
 
 export default function TabLayout() {
   const colors = useColors();
@@ -16,9 +16,9 @@ export default function TabLayout() {
           backgroundColor: colors.bgCard,
           borderTopColor: "rgba(0,180,255,0.15)",
           borderTopWidth: 1,
-          height: Platform.OS === "web" ? 84 : 64,
-          paddingBottom: Platform.OS === "web" ? 34 : 10,
-          paddingTop: 8,
+          height: Platform.OS === "web" ? 92 : 70,
+          paddingBottom: Platform.OS === "web" ? 34 : 12,
+          paddingTop: 6,
         },
         tabBarLabelStyle: { fontFamily: "Inter_600SemiBold", fontSize: 9, letterSpacing: 0.5 },
         tabBarBackground: () => (
@@ -26,15 +26,15 @@ export default function TabLayout() {
         ),
       }}
     >
-      <Tabs.Screen name="index"       options={{ title: "Dashboard",  tabBarIcon: ({ color }) => <Feather name="grid"           size={19} color={color} /> }} />
-      <Tabs.Screen name="chat"        options={{ title: "TITAN AI",   tabBarIcon: ({ color }) => <Feather name="cpu"            size={19} color={color} /> }} />
-      <Tabs.Screen name="quote"       options={{ title: "Quote",      tabBarIcon: ({ color }) => <Feather name="file-text"      size={19} color={color} /> }} />
-      <Tabs.Screen name="leads"       options={{ title: "Leads",      tabBarIcon: ({ color }) => <Feather name="target"         size={19} color={color} /> }} />
-      <Tabs.Screen name="recruitment" options={{ title: "Recruit",    tabBarIcon: ({ color }) => <Feather name="users"          size={19} color={color} /> }} />
-      <Tabs.Screen name="whatsapp"    options={{ title: "WhatsApp",   tabBarIcon: ({ color }) => <Feather name="message-circle" size={19} color={color} /> }} />
-      <Tabs.Screen name="clients"     options={{ title: "Clients",    tabBarIcon: ({ color }) => <Feather name="briefcase"      size={19} color={color} /> }} />
-      <Tabs.Screen name="history"     options={{ title: "History",    tabBarIcon: ({ color }) => <Feather name="bar-chart-2"    size={19} color={color} /> }} />
-      <Tabs.Screen name="admin"       options={{ title: "Admin",      tabBarIcon: ({ color }) => <Feather name="shield"         size={19} color={color} /> }} />
+      <Tabs.Screen name="index"       options={{ title: "Dashboard",  tabBarIcon: ({ color, focused }) => <Icon3D name="grid"           size={16} bgSize={32} color={color} glow={focused} /> }} />
+      <Tabs.Screen name="chat"        options={{ title: "TITAN AI",   tabBarIcon: ({ color, focused }) => <Icon3D name="cpu"            size={16} bgSize={32} color={color} glow={focused} /> }} />
+      <Tabs.Screen name="quote"       options={{ title: "Quote",      tabBarIcon: ({ color, focused }) => <Icon3D name="file-text"      size={16} bgSize={32} color={color} glow={focused} /> }} />
+      <Tabs.Screen name="leads"       options={{ title: "Leads",      tabBarIcon: ({ color, focused }) => <Icon3D name="target"         size={16} bgSize={32} color={color} glow={focused} /> }} />
+      <Tabs.Screen name="recruitment" options={{ title: "Recruit",    tabBarIcon: ({ color, focused }) => <Icon3D name="users"          size={16} bgSize={32} color={color} glow={focused} /> }} />
+      <Tabs.Screen name="whatsapp"    options={{ title: "WhatsApp",   tabBarIcon: ({ color, focused }) => <Icon3D name="message-circle" size={16} bgSize={32} color={color} glow={focused} /> }} />
+      <Tabs.Screen name="clients"     options={{ title: "Clients",    tabBarIcon: ({ color, focused }) => <Icon3D name="briefcase"      size={16} bgSize={32} color={color} glow={focused} /> }} />
+      <Tabs.Screen name="history"     options={{ title: "History",    tabBarIcon: ({ color, focused }) => <Icon3D name="bar-chart-2"    size={16} bgSize={32} color={color} glow={focused} /> }} />
+      <Tabs.Screen name="admin"       options={{ title: "Admin",      tabBarIcon: ({ color, focused }) => <Icon3D name="shield"         size={16} bgSize={32} color={color} glow={focused} /> }} />
     </Tabs>
   );
 }

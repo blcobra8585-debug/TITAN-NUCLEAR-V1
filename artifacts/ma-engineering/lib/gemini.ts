@@ -50,3 +50,59 @@ Reply helpfully in Hinglish, max 3 sentences.`;
 }
 
 export const sendToLily = askLily;
+
+export async function generateFollowUp(params: {
+  client: string;
+  project: string;
+  daysSinceQuote: number;
+  status: string;
+}): Promise<string> {
+  const { client, project, daysSinceQuote, status } = params;
+  try {
+    const apiKey = await AsyncStorage.getItem("gemini_api_key").catch(() => null);
+    if (!apiKey) {
+      return `Namaste ${client}! Aapke *${project}* project ke quote ke baare mein follow-up — kya aap decide kar paaye? Koi sawaal ho to bataiye, hum madad ke liye ready hain!`;
+    }
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const prompt = `You are Lily, sales manager at MA Engineering (crane & chimney construction, India). Write a short, warm WhatsApp follow-up message in Hinglish for a client:
+- Client: ${client}
+- Project: ${project}
+- Quote status: ${status}
+- Days since quote sent: ${daysSinceQuote}
+
+Keep it under 4 lines, friendly but professional, gently nudge toward a decision without being pushy. No markdown headers.`;
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  } catch (err: any) {
+    return `Namaste ${client}! Aapke *${project}* project quote ka follow-up — koi update ho to bataiye.`;
+  }
+}
+
+export async function generateNegotiationReply(params: {
+  client: string;
+  project: string;
+  quotedAmount: number;
+  clientOffer: string;
+}): Promise<string> {
+  const { client, project, quotedAmount, clientOffer } = params;
+  try {
+    const apiKey = await AsyncStorage.getItem("gemini_api_key").catch(() => null);
+    if (!apiKey) {
+      return `Namaste ${client}, aapka offer note kar liya hai. Hum ${project} project ke liye best possible rate dene ki koshish karenge — thodi der mein confirm karte hain. Admin Panel mein Gemini key add karein AI-negotiation ke liye.`;
+    }
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const prompt = `You are Lily, a skilled sales negotiator for MA Engineering (crane & chimney construction, India). A client is negotiating price:
+- Client: ${client}
+- Project: ${project}
+- Our quoted amount: ₹${quotedAmount.toLocaleString("en-IN")}
+- Client said: "${clientOffer}"
+
+Write a short, polite Hinglish WhatsApp reply that holds firm on value while offering a small reasonable concession (max 5-8%) or a value-add (like free maintenance visit) instead of a big discount. Under 5 lines. No markdown headers.`;
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  } catch (err: any) {
+    return `Namaste ${client}, aapka offer note kar liya hai. Hum best possible rate ke saath jald hi confirm karenge.`;
+  }
+}

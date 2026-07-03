@@ -20,6 +20,7 @@ import { useColors } from "@/hooks/useColors";
 import { timeoutSignal } from "@/lib/timeout";
 import GlowOrb from "@/components/GlowOrb";
 import Tilt3DCard from "@/components/Tilt3DCard";
+import Icon3D from "@/components/Icon3D";
 
 function fmt(amount: number) {
   if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(2)}Cr`;
@@ -109,9 +110,7 @@ export default function DashboardScreen() {
         {/* Titan Mode */}
         <ReAnimated.View entering={FadeInDown.duration(500).delay(80)}>
           <Tilt3DCard style={[styles.titanCard, { backgroundColor: colors.card, borderColor: titanMode ? colors.neonBlue : colors.border, shadowColor: titanMode ? colors.neonBlue : "transparent" }]}>
-            <View style={[styles.titanIcon, { backgroundColor: titanMode ? `${colors.neonBlue}20` : `${colors.border}50` }]}>
-              <Feather name="zap" size={26} color={titanMode ? colors.neonBlue : colors.mutedForeground} />
-            </View>
+            <Icon3D name="zap" size={24} bgSize={48} color={titanMode ? colors.neonBlue : colors.mutedForeground} glow={titanMode} />
             <View style={{ flex: 1, marginLeft: 14 }}>
               <Text style={[styles.cardTitle, { color: titanMode ? colors.neonBlue : colors.foreground }]}>TITAN MODE</Text>
               <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>{titanMode ? "System Full Power pe hai" : "Tap karo activate karne ke liye"}</Text>
@@ -126,7 +125,7 @@ export default function DashboardScreen() {
           <ReAnimated.View entering={FadeInDown.duration(500).delay(140)} style={{ flex: 1 }}>
             <Tilt3DCard style={[styles.revenueCard, { borderColor: colors.neonCyan, backgroundColor: colors.card }]}>
               <View style={[styles.row, { gap: 6 }]}>
-                <Feather name="trending-up" size={13} color={colors.neonCyan} />
+                <Icon3D name="trending-up" size={11} bgSize={22} color={colors.neonCyan} />
                 <Text style={[styles.miniLabel, { color: colors.neonCyan, letterSpacing: 1 }]}>REVENUE</Text>
               </View>
               {loading ? (
@@ -136,6 +135,11 @@ export default function DashboardScreen() {
                   {fmt(totalRevenue + 1130000)}
                 </Text>
               )}
+              <View style={styles.miniTrend}>
+                {[40, 55, 35, 70, 50, 85, 65].map((h, i) => (
+                  <View key={i} style={[styles.trendBar, { height: h * 0.28, backgroundColor: `${colors.neonCyan}${i === 6 ? "" : "60"}` }]} />
+                ))}
+              </View>
               <Text style={[styles.miniLabel, { color: colors.mutedForeground }]}>This Quarter</Text>
             </Tilt3DCard>
           </ReAnimated.View>
@@ -171,7 +175,7 @@ export default function DashboardScreen() {
           ].map((s, i) => (
             <ReAnimated.View key={s.label} entering={FadeInDown.duration(500).delay(260 + i * 60)} style={{ flex: 1 }}>
               <Tilt3DCard style={[styles.statCard, { borderColor: s.color, backgroundColor: colors.card }]}>
-                <Feather name={s.icon} size={20} color={s.color} />
+                <Icon3D name={s.icon} size={17} bgSize={34} color={s.color} />
                 <Text style={[styles.statNum, { color: s.color }]}>{s.num}</Text>
                 <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
               </Tilt3DCard>
@@ -228,7 +232,7 @@ export default function DashboardScreen() {
                   onPress={() => { Haptics.selectionAsync(); router.push(a.route as any); }}
                   activeOpacity={0.75}
                 >
-                  <Feather name={a.icon} size={22} color={a.color} />
+                  <Icon3D name={a.icon} size={18} bgSize={38} color={a.color} />
                   <Text style={[styles.actionLabel, { color: a.color }]}>{a.label}</Text>
                 </TouchableOpacity>
               </Tilt3DCard>
@@ -308,4 +312,6 @@ const styles = StyleSheet.create({
   onlineText: { fontSize: 10, fontFamily: "Inter_700Bold" },
   pricingCard: { padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 8 },
   pricingVal: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  miniTrend: { flexDirection: "row", alignItems: "flex-end", gap: 3, height: 26, marginTop: 6 },
+  trendBar: { flex: 1, borderRadius: 2 },
 });
