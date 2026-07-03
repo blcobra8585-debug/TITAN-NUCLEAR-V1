@@ -66,16 +66,22 @@ export default function AdminScreen() {
   }, []);
 
   async function loadAll() {
-    const allKeys = [...AI_KEYS, ...SERVICE_KEYS].map(k => k.storageKey);
-    const vals = await AsyncStorage.multiGet([...allKeys, "indiamart_glid", "indiamart_key"]);
-    const map: Record<string, string> = {};
-    vals.forEach(([k, v]) => { if (v) map[k] = v; });
-    setKeyValues(map);
-    setImGlid(map["indiamart_glid"] ?? "");
-    setImKey(map["indiamart_key"] ?? "");
-    getLastHuntTime().then(setLastHunt);
-    getLastRecruitmentRun().then(setLastRecruit);
-    hasPIN().then(setPinEnabled);
+    try {
+      const allKeys = [...AI_KEYS, ...SERVICE_KEYS].map(k => k.storageKey);
+      const vals = await AsyncStorage.multiGet([...allKeys, "indiamart_glid", "indiamart_key"]);
+      const map: Record<string, string> = {};
+      vals.forEach(([k, v]) => { if (v) map[k] = v; });
+      setKeyValues(map);
+      setImGlid(map["indiamart_glid"] ?? "");
+      setImKey(map["indiamart_key"] ?? "");
+      getLastHuntTime().then(setLastHunt).catch(() => setLastHunt("Error"));
+      getLastRecruitmentRun().then(setLastRecruit).catch(() => setLastRecruit("Error"));
+      hasPIN().then(setPinEnabled).catch(() => {});
+    } catch (e: any) {
+      // Storage read failure — degrade to empty defaults instead of crashing screen
+      setKeyValues({});
+      setImGlid(""); setImKey("");
+    }
   }
 
   async function saveAll() {
@@ -120,10 +126,15 @@ export default function AdminScreen() {
 
   async function runDiag() {
     setRunningDiag(true);
-    const results = await runDiagnostics();
-    setDiagnostics(results);
-    setRunningDiag(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      const results = await runDiagnostics();
+      setDiagnostics(results);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setDiagnostics([{ name: "Diagnostics", status: "error", detail: e.message ?? "Unknown error" }]);
+    } finally {
+      setRunningDiag(false);
+    }
   }
 
   async function handlePinToggle(val: boolean) {

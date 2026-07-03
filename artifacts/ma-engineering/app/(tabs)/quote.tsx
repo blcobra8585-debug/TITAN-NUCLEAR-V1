@@ -81,23 +81,28 @@ export default function QuoteScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     setQuote("");
-    const result = await generateQuote(client, project, parseFloat(tons));
-    const finalQuote = result + tone.suffix;
-    setQuote(finalQuote);
-    const saved = await saveQuote({
-      clientName: client,
-      clientPhone: phone.trim(),
-      projectType: project,
-      tonnage: parseFloat(tons),
-      quotedAmount: quotedCost,
-      quoteText: finalQuote,
-      leadSource,
-      referredBy: referredBy.trim(),
-      notes: notes.trim(),
-    }).then(() => true).catch(() => false);
-    await refreshRevenue();
-    setLoading(false);
-    if (saved) burstRef.current?.fire();
+    try {
+      const result = await generateQuote(client, project, parseFloat(tons));
+      const finalQuote = result + tone.suffix;
+      setQuote(finalQuote);
+      const saved = await saveQuote({
+        clientName: client,
+        clientPhone: phone.trim(),
+        projectType: project,
+        tonnage: parseFloat(tons),
+        quotedAmount: quotedCost,
+        quoteText: finalQuote,
+        leadSource,
+        referredBy: referredBy.trim(),
+        notes: notes.trim(),
+      }).then(() => true).catch(() => false);
+      await refreshRevenue();
+      if (saved) burstRef.current?.fire();
+    } catch (e: any) {
+      Alert.alert("❌ Error", e.message?.slice(0, 120) ?? "Quote generate nahi hua. Dobara try karo.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function openWaModal() {
@@ -113,17 +118,22 @@ export default function QuoteScreen() {
     }
     setWaSending(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const msg = language === "en"
-      ? buildQuoteMessageLang({ client, project, tons, cost: quotedCost }, "en")
-      : buildQuoteMessage(client, project, quote);
-    const result = await sendWhatsAppMessage(clientPhone, msg);
-    setWaSending(false);
-    setWaModal(false);
-    if (result.success) {
-      burstRef.current?.fire();
-      Alert.alert("✅ Bhej diya!", `Quote ${clientPhone} pe WhatsApp par bhej diya gaya.`);
-    } else {
-      Alert.alert("❌ Error", result.error ?? "WhatsApp send failed.");
+    try {
+      const msg = language === "en"
+        ? buildQuoteMessageLang({ client, project, tons, cost: quotedCost }, "en")
+        : buildQuoteMessage(client, project, quote);
+      const result = await sendWhatsAppMessage(clientPhone, msg);
+      setWaModal(false);
+      if (result.success) {
+        burstRef.current?.fire();
+        Alert.alert("✅ Bhej diya!", `Quote ${clientPhone} pe WhatsApp par bhej diya gaya.`);
+      } else {
+        Alert.alert("❌ Error", result.error ?? "WhatsApp send failed.");
+      }
+    } catch (e: any) {
+      Alert.alert("❌ Error", e.message?.slice(0, 120) ?? "WhatsApp send nahi hua. Dobara try karo.");
+    } finally {
+      setWaSending(false);
     }
   }
 

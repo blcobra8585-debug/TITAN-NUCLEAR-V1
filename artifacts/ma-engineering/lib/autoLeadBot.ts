@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { collection, addDoc, query, where, getDocs, Timestamp } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, firebaseReady } from "./firebase";
 
 const LAST_HUNT_KEY = "last_lead_hunt_ts";
 const MIN_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours minimum
@@ -48,6 +48,9 @@ async function saveLead(lead: any): Promise<void> {
 
 export async function startLeadHunting(): Promise<void> {
   try {
+    // Guard: don't attempt Firestore writes during cold-start retry window
+    if (!firebaseReady) return;
+
     const lastHunt = await AsyncStorage.getItem(LAST_HUNT_KEY).catch(() => null);
     if (lastHunt && Date.now() - parseInt(lastHunt, 10) < MIN_INTERVAL) return;
 
@@ -56,6 +59,7 @@ export async function startLeadHunting(): Promise<void> {
     const key = await AsyncStorage.getItem("indiamart_key").catch(() => null);
     if (!glid || !key) return;
 
+    // Mark hunt time BEFORE fetch so a crash/timeout doesn't re-fetch immediately
     await AsyncStorage.setItem(LAST_HUNT_KEY, Date.now().toString()).catch(() => {});
 
     const leads = await fetchIndiaMART("crane chimney", glid, key);
