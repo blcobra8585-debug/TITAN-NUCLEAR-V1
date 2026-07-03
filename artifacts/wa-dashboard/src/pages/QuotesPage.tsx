@@ -4,9 +4,10 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, updateDoc, doc, addDoc, serverTimestamp, deleteDoc } from "firebase/firestore";
 import { generateQuoteText } from "@/lib/gemini";
 import { sendWAMessage } from "@/lib/whatsapp";
+import { downloadInvoicePDF, makeInvoiceNumber } from "@/lib/invoice";
 import { FileText, Zap, Check, X, Clock, Search, Filter, Trash2, Send, Eye, Plus, ChevronDown, Download } from "lucide-react";
 
-interface Quote { id: string; clientName: string; projectType: string; tonnage: number; quotedAmount: number; quoteText: string; status: "pending"|"approved"|"rejected"; createdAt: any; }
+interface Quote { id: string; clientName: string; clientPhone?: string; projectType: string; tonnage: number; quotedAmount: number; quoteText: string; status: "pending"|"approved"|"rejected"; createdAt: any; }
 
 const PROJECTS = ["EOT Crane Installation","EOT Crane Dismantling","Gantry Crane Erection","Chimney Installation","Industrial Boiler Setup","Steel Structure Erection","Overhead Crane","Jib Crane Installation"];
 const STATUS_COLORS: Record<string,string> = { pending: "#F59E0B", approved: "#25D366", rejected: "#EF4444" };
@@ -20,6 +21,7 @@ export default function QuotesPage() {
   const [selectedQuote, setSelectedQuote] = useState<Quote|null>(null);
   const [generating, setGenerating] = useState(false);
   const [client, setClient] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
   const [project, setProject] = useState(PROJECTS[0]);
   const [tons, setTons] = useState("");
   const [newQuoteText, setNewQuoteText] = useState("");
@@ -35,8 +37,8 @@ export default function QuotesPage() {
     }, () => {
       setQuotes([
         { id: "1", clientName: "Ramesh Kumar", projectType: "EOT Crane Installation", tonnage: 50, quotedAmount: 687500, quoteText: "Professional EOT crane installation quote for 50T capacity...", status: "pending", createdAt: new Date() },
-        { id: "2", clientName: "Vijay Steel", projectType: "Chimney Installation", tonnage: 30, quotedAmount: 412500, quoteText: "Chimney installation project quote...", status: "approved", createdAt: new Date() },
-        { id: "3", clientName: "Suresh Industries", projectType: "Gantry Crane Erection", tonnage: 100, quotedAmount: 1375000, quoteText: "Gantry crane erection detailed quote...", status: "rejected", createdAt: new Date() },
+        { id: "2", clientName: "Vijay Steel", clientPhone: "919876543210", projectType: "Chimney Installation", tonnage: 30, quotedAmount: 412500, quoteText: "Chimney installation project quote...", status: "approved", createdAt: new Date() },
+        { id: "3", clientName: "Suresh Industries", clientPhone: "919812345670", projectType: "Gantry Crane Erection", tonnage: 100, quotedAmount: 1375000, quoteText: "Gantry crane erection detailed quote...", status: "rejected", createdAt: new Date() },
       ]);
     });
     return () => unsub();
@@ -53,10 +55,11 @@ export default function QuotesPage() {
 
   async function saveQuote() {
     if (!newQuoteText) { toast.error("Pehle quote generate karo"); return; }
+    if (!clientPhone.trim()) { toast.error("Client ka phone number daalo (WhatsApp/reminder ke liye zaroori)"); return; }
     const amt = parseFloat(tons) * 5500 * 1.25;
-    await addDoc(collection(db, "quotes"), { clientName: client, projectType: project, tonnage: parseFloat(tons), quotedAmount: amt, quoteText: newQuoteText, status: "pending", createdAt: serverTimestamp() });
+    await addDoc(collection(db, "quotes"), { clientName: client, clientPhone: clientPhone.trim(), projectType: project, tonnage: parseFloat(tons), quotedAmount: amt, quoteText: newQuoteText, status: "pending", paymentStatus: "unpaid", invoiced: false, createdAt: serverTimestamp() });
     toast.success("Quote save ho gaya!");
-    setShowNew(false); setClient(""); setTons(""); setNewQuoteText("");
+    setShowNew(false); setClient(""); setClientPhone(""); setTons(""); setNewQuoteText("");
   }
 
   async function updateStatus(id: string, status: string) {
@@ -71,11 +74,19 @@ export default function QuotesPage() {
 
   async function sendViaWA(q: Quote) {
     if (!waToken || !wabaId) { toast.error("WA token settings mein daalo"); return; }
+    if (!q.clientPhone) { toast.error("Is quote mein client ka phone number nahi hai"); return; }
     const msg = `🏗️ *MA ENGINEERING — Quote*\n\nClient: *${q.clientName}*\nProject: *${q.projectType}*\n\n${q.quoteText}\n\nQuote Value: *₹${(q.quotedAmount/100000).toFixed(2)}L*\n\n*MA Engineering* | Suhan Siddiqui`;
     toast.loading("Bhej raha hoon...");
-    const r = await sendWAMessage("91" + q.clientName, msg, waToken, wabaId);
+    const r = await sendWAMessage(q.clientPhone, msg, waToken, wabaId);
     toast.dismiss();
     if (r.success) toast.success("WhatsApp pe bhej diya!"); else toast.error(r.error);
+  }
+
+  function generateInvoice(q: Quote) {
+    if (q.status !== "approved") { toast.error("Sirf approved quotes ka invoice ban sakta hai"); return; }
+    const invoiceNumber = makeInvoiceNumber(q.id);
+    downloadInvoicePDF({ id: q.id, clientName: q.clientName, clientPhone: q.clientPhone, projectType: q.projectType, tonnage: q.tonnage, quotedAmount: q.quotedAmount }, invoiceNumber, 0);
+    toast.success(`Invoice ${invoiceNumber} download ho gaya`);
   }
 
   const filtered = quotes.filter(q => (filter === "all" || q.status === filter) && (q.clientName.toLowerCase().includes(search.toLowerCase()) || q.projectType.toLowerCase().includes(search.toLowerCase())));
@@ -123,6 +134,9 @@ export default function QuotesPage() {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <input className="bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground outline-none" placeholder="Client Name" value={client} onChange={e => setClient(e.target.value)}/>
+            <input className="bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground outline-none" placeholder="Client Phone (91XXXXXXXXXX)" value={clientPhone} onChange={e => setClientPhone(e.target.value)}/>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
             <input type="number" className="bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground outline-none" placeholder="Tonnage (T)" value={tons} onChange={e => setTons(e.target.value)}/>
           </div>
           <select className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none" value={project} onChange={e => setProject(e.target.value)}>
@@ -147,9 +161,16 @@ export default function QuotesPage() {
           </div>
           <div className="text-xs text-muted-foreground">{selectedQuote.projectType} • {selectedQuote.tonnage}T • {fmt(selectedQuote.quotedAmount)}</div>
           <div className="bg-background border border-border rounded-lg p-3 text-xs text-foreground whitespace-pre-wrap max-h-40 overflow-y-auto">{selectedQuote.quoteText}</div>
-          <button onClick={() => sendViaWA(selectedQuote)} className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold text-white" style={{ background: "#25D366" }}>
-            <Send size={13}/> Send via WhatsApp
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => sendViaWA(selectedQuote)} className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold text-white" style={{ background: "#25D366" }}>
+              <Send size={13}/> Send via WhatsApp
+            </button>
+            {selectedQuote.status === "approved" && (
+              <button onClick={() => generateInvoice(selectedQuote)} className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold text-black" style={{ background: "#00FFD1" }}>
+                <Download size={13}/> Invoice
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -176,6 +197,7 @@ export default function QuotesPage() {
               <button onClick={() => setSelectedQuote(selectedQuote?.id === q.id ? null : q)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-muted-foreground hover:text-[#00B4FF]"><Eye size={10}/> View</button>
               {q.status !== "approved" && <button onClick={() => updateStatus(q.id,"approved")} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-[#25D366]"><Check size={10}/> Approve</button>}
               {q.status !== "rejected" && <button onClick={() => updateStatus(q.id,"rejected")} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-destructive"><X size={10}/> Reject</button>}
+              {q.status === "approved" && <button onClick={() => generateInvoice(q)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-[#00FFD1]"><Download size={10}/> Invoice</button>}
               <button onClick={() => sendViaWA(q)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-black ml-auto" style={{ background: "#25D366" }}><Send size={10}/> WA</button>
               <button onClick={() => deleteQuote(q.id)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-destructive"><Trash2 size={10}/></button>
             </div>
