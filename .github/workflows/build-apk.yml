@@ -40,12 +40,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-#      - name: Expo Prebuild (Android)
-#        working-directory: artifacts/ma-engineering
-#        run: pnpm exec expo prebuild --platform android --no-install --clean
-#        env:
-#          EXPO_NO_DOTENV: 1
-#          CI: 1
+      - name: Expo Prebuild (Android)
+        working-directory: artifacts/ma-engineering
+        run: pnpm exec expo prebuild --platform android --clean
+        env:
+          EXPO_NO_DOTENV: 1
+          CI: 1
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -108,20 +108,25 @@ jobs:
             3. APK file open karo → Install
             4. Purani app pehle uninstall karo phir install karo
 
-            ### 🔧 Kya fix hua is build mein:
-            - ✅ **MAIN CRASH FIX** — react-native-worklets 0.8.2 restore (reanimated 4.3.0 ke liye zaroori)
-            - ✅ App startup crash fix — safeRun wrapper se koi bhi init crash nahi karega
-            - ✅ expo-av plugin properly configured
-            - ✅ Version 3.2.0, versionCode 6
+            ### 🔧 Is build mein kya hai:
+            - ✅ **CRASH FIX** — react-native-reanimated 3.19.5 → 4.x (Expo SDK 54 compatible)
+            - ✅ react-native-worklets-core added (reanimated 4.x peer dep)
+            - ✅ expo prebuild --clean se fresh native Android code generated
+            - ✅ Firebase guards — firebaseReady check in all Firestore calls
+            - ✅ **Deal Pipeline Kanban** — Lead → Quoted → Negotiation → Won/Lost
+            - ✅ **Ghost Lead Detector** 👻 — 48h+ unreplied leads flagged
+            - ✅ **Deal Temperature** — 🔥 Hot / ⚡ Warm / ❄️ Cold badges
+            - ✅ **Trust Badge** auto-attached on first Lily reply
+            - ✅ WA token moved server-side (no more localStorage)
 
             ### 🚀 Features:
-            - **TITAN AI** — 10+ AI models (Gemini/GPT/Claude/Groq/DeepSeek)
-            - **Lily Voice** — ElevenLabs TTS
+            - **TITAN AI** — Multi-model AI (Gemini/GPT/Claude/Groq)
+            - **Deal Pipeline** — Kanban board with 5 stages
             - **Lead Bot** — IndiaMART auto-fetch → Firebase
+            - **Lily Voice** — ElevenLabs TTS
             - **Recruit Bot** — Auto job posting
-            - **Firebase sync** — Real-time data
-            - **Auto Update** — GitHub release checker
             - **PIN Security** — App lock
+            - **Auto Update** — GitHub release checker
 
             **Build SHA:** `${{ github.sha }}`
           files: MA-TITAN-v${{ github.run_number }}.apk
