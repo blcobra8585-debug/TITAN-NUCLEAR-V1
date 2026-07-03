@@ -22,7 +22,19 @@ const queryClient = new QueryClient({
 });
 
 function safeRun(fn: () => Promise<any>, name: string): void {
-  Promise.resolve().then(fn).catch(() => {});
+  // Fix #6: stay non-fatal, but log failures instead of swallowing them
+  // silently — otherwise a real problem (bad IndiaMART keys, Firestore
+  // permission errors, etc.) just looks like "nothing happens" with zero
+  // way to diagnose it.
+  Promise.resolve()
+    .then(fn)
+    .catch((err) => {
+      // eslint-disable-next-line no-console
+      console.warn(`[safeRun] ${name} failed:`, err);
+      import("@/lib/autoHeal")
+        .then(({ reportCrash }) => reportCrash(err instanceof Error ? err : new Error(String(err)), name))
+        .catch(() => {});
+    });
 }
 
 function AppInit() {

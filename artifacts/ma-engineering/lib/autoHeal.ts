@@ -22,6 +22,7 @@ export interface ErrorReport {
 const APP_VERSION = "3.2.0";
 const MAX_RETRY = 3;
 const RETRY_DELAY_MS = 2000;
+const MAX_QUEUE_LENGTH = 50;
 
 // Report error to Firebase silently
 async function reportError(error: ErrorReport): Promise<void> {
@@ -73,6 +74,20 @@ export async function safeSyncToFirebase(
   try {
     await fn();
   } catch {
+    // Fix #5: cap the queue so a persistently failing sync can't grow
+    // unbounded and leak memory — drop the oldest pending item to make room.
+    if (pendingQueue.length >= MAX_QUEUE_LENGTH) {
+      const dropped = pendingQueue.shift();
+      if (dropped) {
+        await reportError({
+          message: "Sync queue full — dropped oldest pending item",
+          context: dropped.context,
+          timestamp: Date.now(),
+          appVersion: APP_VERSION,
+          healed: false,
+        });
+      }
+    }
     pendingQueue.push({ fn, context, attempts: 0 });
     startHealLoop();
   }
@@ -87,11 +102,18 @@ function startHealLoop(): void {
       return;
     }
     const item = pendingQueue[0];
+    if (!item) {
+      clearInterval(healTimer!);
+      healTimer = null;
+      return;
+    }
     try {
       await item.fn();
       pendingQueue.shift(); // success — remove
     } catch {
       item.attempts++;
+      // Fix #5: guard against attempts somehow starting at/above MAX_RETRY
+      // (off-by-one safety net) so the loop always terminates this item.
       if (item.attempts >= MAX_RETRY) {
         pendingQueue.shift(); // give up after max retries
         await reportError({

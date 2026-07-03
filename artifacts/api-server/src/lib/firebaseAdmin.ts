@@ -26,6 +26,14 @@ export function getFirebaseAdmin(): admin.app.App {
     logger.info("Firebase Admin initialized");
   } catch (err) {
     logger.error({ err }, "Firebase Admin init failed");
+    // Do NOT call admin.app() below — if init failed there is no default
+    // app registered, and admin.app() throws "no Firebase App '[DEFAULT]'
+    // has been created", crashing every route that touches Firestore.
+    // Throw a clear, catchable error instead so callers' existing
+    // try/catch blocks can turn this into a 500 response.
+    throw new Error(
+      `Firebase Admin is not available: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   return admin.app();

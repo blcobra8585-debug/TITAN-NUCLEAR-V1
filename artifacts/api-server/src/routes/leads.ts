@@ -33,12 +33,29 @@ router.get("/indiamart", async (req: Request, res: Response) => {
   try {
     const now = new Date();
     const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const fmt = (d: Date) =>
-      `${d.getDate().toString().padStart(2,"0")}-${(d.getMonth()+1).toString().padStart(2,"0")}-${d.getFullYear()} 00:00:00`;
+    // Fix #9: IndiaMART expects dates in IST regardless of where this server
+    // is deployed. Building the string from local server time (e.g. UTC on
+    // Render/Replit/Railway) silently shifts the 24h window and can miss leads.
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const fmt = (d: Date) => {
+      const ist = new Date(d.getTime() + IST_OFFSET_MS);
+      return `${ist.getUTCDate().toString().padStart(2,"0")}-${(ist.getUTCMonth()+1).toString().padStart(2,"0")}-${ist.getUTCFullYear()} 00:00:00`;
+    };
 
     const url = `https://mapi.indiamart.com/wservce/crm/crmListing/v2/?glusr_crm_key=${key}&glusr_crm_glid=${glid}&glusr_crm_start_time=${encodeURIComponent(fmt(start))}&glusr_crm_end_time=${encodeURIComponent(fmt(now))}`;
     const apiRes = await fetch(url, { signal: AbortSignal.timeout(12000) });
-    const data = await apiRes.json() as any;
+
+    // Fix #12: IndiaMART occasionally returns a non-JSON error page (e.g.
+    // HTML from a gateway timeout) instead of the expected JSON body.
+    // Calling .json() unconditionally on that throws a SyntaxError that
+    // used to escape as an opaque 500 instead of the normal error response.
+    let data: any;
+    try {
+      data = await apiRes.json();
+    } catch {
+      logger.error({ status: apiRes.status }, "IndiaMART returned non-JSON response");
+      return res.json({ success: false, error: `IndiaMART returned an invalid response (HTTP ${apiRes.status})` });
+    }
     const inquiries = data.RESPONSE?.STATUS === 1 ? (data.RESPONSE?.RESULTS ?? []) : [];
 
     const newLeads: Lead[] = inquiries.map((inq: any) => ({

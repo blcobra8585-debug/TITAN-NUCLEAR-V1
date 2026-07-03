@@ -112,8 +112,14 @@ export default function WhatsAppPage() {
     for (const id of broadcastTargets) {
       const c = contacts.find(x => x.id === id);
       if (!c) continue;
-      const r = await sendWAMessage(c.phone, broadcastMsg, waToken, wabaId);
-      if (r.success) ok++; else fail++;
+      // Fix #13: a single failing/throwing send used to abort the whole
+      // broadcast loop, silently skipping every remaining contact.
+      try {
+        const r = await sendWAMessage(c.phone, broadcastMsg, waToken, wabaId);
+        if (r.success) ok++; else fail++;
+      } catch {
+        fail++;
+      }
       await new Promise(res => setTimeout(res, 1000));
     }
     setBroadcasting(false);

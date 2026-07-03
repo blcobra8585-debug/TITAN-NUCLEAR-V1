@@ -97,12 +97,31 @@ async function handleIncomingMessage(msg: any) {
   }
 }
 
+let initInProgress = false;
+
 export async function initWAClient(): Promise<void> {
-  if (state.status === "connected" || state.status === "connecting") return;
+  // Fix #7: guard against overlapping initWAClient() calls (rapid reconnect
+  // cycles on a flaky network) which would otherwise create multiple live
+  // sockets each registering their own listeners.
+  if (state.status === "connected" || state.status === "connecting" || initInProgress) return;
+  initInProgress = true;
   state.status = "connecting";
   state.qrDataUrl = null;
 
   try {
+    // Remove listeners from any previous socket before replacing it —
+    // otherwise rapid reconnects leak listeners, causing duplicate bot
+    // replies / duplicate WhatsApp messages sent to real clients.
+    if (state.sock) {
+      try {
+        state.sock.ev.removeAllListeners("connection.update");
+        state.sock.ev.removeAllListeners("creds.update");
+        state.sock.ev.removeAllListeners("chats.upsert");
+        state.sock.ev.removeAllListeners("messages.upsert");
+      } catch {}
+      state.sock = null;
+    }
+
     const { state: authState, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
     const { version } = await fetchLatestBaileysVersion();
 
@@ -162,6 +181,8 @@ export async function initWAClient(): Promise<void> {
   } catch (err) {
     logger.error({ err }, "WA init error");
     state.status = "disconnected";
+  } finally {
+    initInProgress = false;
   }
 }
 

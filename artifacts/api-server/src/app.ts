@@ -3,6 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { requireApiKey } from "./middleware/auth";
 
 const app: Express = express();
 
@@ -29,6 +30,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use("/api", router);
+// Fix #11: require a shared secret (x-api-key) on all mutating/data routes.
+// Health check stays public for uptime monitors/load balancers.
+app.use("/api", requireApiKey, router);
 
 export default app;

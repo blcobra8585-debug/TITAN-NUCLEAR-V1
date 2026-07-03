@@ -143,10 +143,10 @@ const gptHistory: { role: "user" | "assistant" | "system"; content: string }[] =
 ];
 
 async function askOpenAI(message: string, modelId: AIModel): Promise<string> {
+  const key = await AsyncStorage.getItem("openai_api_key");
+  if (!key) return "⚙️ OpenAI API key chahiye — Admin Panel mein set karo!";
+  gptHistory.push({ role: "user", content: message });
   try {
-    const key = await AsyncStorage.getItem("openai_api_key");
-    if (!key) return "⚙️ OpenAI API key chahiye — Admin Panel mein set karo!";
-    gptHistory.push({ role: "user", content: message });
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
@@ -154,6 +154,7 @@ async function askOpenAI(message: string, modelId: AIModel): Promise<string> {
       signal: timeoutSignal(30000),
     });
     if (!res.ok) {
+      gptHistory.pop(); // drop the unanswered user message — avoids two consecutive "user" entries
       if (res.status === 401) return "🔑 OpenAI key invalid — check karo!";
       if (res.status === 429) return "⏳ OpenAI rate limit — baad mein try karo.";
       return `❌ GPT error ${res.status}`;
@@ -162,7 +163,10 @@ async function askOpenAI(message: string, modelId: AIModel): Promise<string> {
     const reply = data.choices?.[0]?.message?.content ?? "";
     gptHistory.push({ role: "assistant", content: reply });
     return reply;
-  } catch (e: any) { return `❌ GPT error: ${e.message?.slice(0, 80)}`; }
+  } catch (e: any) {
+    gptHistory.pop();
+    return `❌ GPT error: ${e.message?.slice(0, 80)}`;
+  }
 }
 
 // ─── CLAUDE (Anthropic) ───────────────────────────────
@@ -174,10 +178,10 @@ const CLAUDE_MAP: Record<string, string> = {
 const claudeHistory: { role: "user" | "assistant"; content: string }[] = [];
 
 async function askClaude(message: string, modelId: AIModel): Promise<string> {
+  const key = await AsyncStorage.getItem("anthropic_api_key");
+  if (!key) return "⚙️ Anthropic API key chahiye — Admin Panel mein set karo!";
+  claudeHistory.push({ role: "user", content: message });
   try {
-    const key = await AsyncStorage.getItem("anthropic_api_key");
-    if (!key) return "⚙️ Anthropic API key chahiye — Admin Panel mein set karo!";
-    claudeHistory.push({ role: "user", content: message });
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
@@ -185,6 +189,7 @@ async function askClaude(message: string, modelId: AIModel): Promise<string> {
       signal: timeoutSignal(30000),
     });
     if (!res.ok) {
+      claudeHistory.pop();
       if (res.status === 401) return "🔑 Anthropic key invalid!";
       if (res.status === 429) return "⏳ Claude rate limit — baad mein try karo.";
       return `❌ Claude error ${res.status}`;
@@ -193,7 +198,10 @@ async function askClaude(message: string, modelId: AIModel): Promise<string> {
     const reply = data.content?.[0]?.text ?? "";
     claudeHistory.push({ role: "assistant", content: reply });
     return reply;
-  } catch (e: any) { return `❌ Claude error: ${e.message?.slice(0, 80)}`; }
+  } catch (e: any) {
+    claudeHistory.pop();
+    return `❌ Claude error: ${e.message?.slice(0, 80)}`;
+  }
 }
 
 // ─── GROQ (Ultra-fast) ────────────────────────────────
@@ -207,10 +215,10 @@ const groqHistory: { role: "user" | "assistant" | "system"; content: string }[] 
 ];
 
 async function askGroq(message: string, modelId: AIModel): Promise<string> {
+  const key = await AsyncStorage.getItem("groq_api_key");
+  if (!key) return "⚙️ Groq API key chahiye (free at console.groq.com) — Admin Panel mein set karo!";
+  groqHistory.push({ role: "user", content: message });
   try {
-    const key = await AsyncStorage.getItem("groq_api_key");
-    if (!key) return "⚙️ Groq API key chahiye (free at console.groq.com) — Admin Panel mein set karo!";
-    groqHistory.push({ role: "user", content: message });
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
@@ -218,6 +226,7 @@ async function askGroq(message: string, modelId: AIModel): Promise<string> {
       signal: timeoutSignal(20000),
     });
     if (!res.ok) {
+      groqHistory.pop();
       if (res.status === 401) return "🔑 Groq key invalid!";
       return `❌ Groq error ${res.status}`;
     }
@@ -225,7 +234,10 @@ async function askGroq(message: string, modelId: AIModel): Promise<string> {
     const reply = data.choices?.[0]?.message?.content ?? "";
     groqHistory.push({ role: "assistant", content: reply });
     return reply;
-  } catch (e: any) { return `❌ Groq error: ${e.message?.slice(0, 80)}`; }
+  } catch (e: any) {
+    groqHistory.pop();
+    return `❌ Groq error: ${e.message?.slice(0, 80)}`;
+  }
 }
 
 // ─── DEEPSEEK ─────────────────────────────────────────
@@ -234,10 +246,10 @@ const deepseekHistory: { role: "user" | "assistant" | "system"; content: string 
 ];
 
 async function askDeepSeek(message: string, modelId: AIModel): Promise<string> {
+  const key = await AsyncStorage.getItem("deepseek_api_key");
+  if (!key) return "⚙️ DeepSeek API key chahiye — Admin Panel mein set karo!";
+  deepseekHistory.push({ role: "user", content: message });
   try {
-    const key = await AsyncStorage.getItem("deepseek_api_key");
-    if (!key) return "⚙️ DeepSeek API key chahiye — Admin Panel mein set karo!";
-    deepseekHistory.push({ role: "user", content: message });
     const model = modelId === "deepseek-coder" ? "deepseek-coder" : "deepseek-chat";
     const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
       method: "POST",
@@ -245,12 +257,18 @@ async function askDeepSeek(message: string, modelId: AIModel): Promise<string> {
       body: JSON.stringify({ model, messages: deepseekHistory.slice(-20), temperature: 0.85, max_tokens: 1500 }),
       signal: timeoutSignal(30000),
     });
-    if (!res.ok) return `❌ DeepSeek error ${res.status}`;
+    if (!res.ok) {
+      deepseekHistory.pop();
+      return `❌ DeepSeek error ${res.status}`;
+    }
     const data = await res.json() as any;
     const reply = data.choices?.[0]?.message?.content ?? "";
     deepseekHistory.push({ role: "assistant", content: reply });
     return reply;
-  } catch (e: any) { return `❌ DeepSeek error: ${e.message?.slice(0, 80)}`; }
+  } catch (e: any) {
+    deepseekHistory.pop();
+    return `❌ DeepSeek error: ${e.message?.slice(0, 80)}`;
+  }
 }
 
 // ─── MISTRAL ──────────────────────────────────────────
@@ -259,10 +277,10 @@ const mistralHistory: { role: "user" | "assistant" | "system"; content: string }
 ];
 
 async function askMistral(message: string, modelId: AIModel): Promise<string> {
+  const key = await AsyncStorage.getItem("mistral_api_key");
+  if (!key) return "⚙️ Mistral API key chahiye — Admin Panel mein set karo!";
+  mistralHistory.push({ role: "user", content: message });
   try {
-    const key = await AsyncStorage.getItem("mistral_api_key");
-    if (!key) return "⚙️ Mistral API key chahiye — Admin Panel mein set karo!";
-    mistralHistory.push({ role: "user", content: message });
     const model = modelId === "mistral-large" ? "mistral-large-latest" : "mistral-small-latest";
     const res = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
@@ -270,12 +288,18 @@ async function askMistral(message: string, modelId: AIModel): Promise<string> {
       body: JSON.stringify({ model, messages: mistralHistory.slice(-20), temperature: 0.85, max_tokens: 1500 }),
       signal: timeoutSignal(30000),
     });
-    if (!res.ok) return `❌ Mistral error ${res.status}`;
+    if (!res.ok) {
+      mistralHistory.pop();
+      return `❌ Mistral error ${res.status}`;
+    }
     const data = await res.json() as any;
     const reply = data.choices?.[0]?.message?.content ?? "";
     mistralHistory.push({ role: "assistant", content: reply });
     return reply;
-  } catch (e: any) { return `❌ Mistral error: ${e.message?.slice(0, 80)}`; }
+  } catch (e: any) {
+    mistralHistory.pop();
+    return `❌ Mistral error: ${e.message?.slice(0, 80)}`;
+  }
 }
 
 // ─── COHERE ───────────────────────────────────────────

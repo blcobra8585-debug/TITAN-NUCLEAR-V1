@@ -5,8 +5,12 @@
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, AppStateStatus } from "react-native";
+import * as Crypto from "expo-crypto";
+import * as SecureStore from "expo-secure-store";
 
 const PIN_KEY = "titan_pin_hash";
+const PIN_SALT_KEY = "titan_pin_salt";
+const ENC_KEY_STORE_KEY = "titan_enc_key";
 const FAILED_ATTEMPTS_KEY = "titan_failed_attempts";
 const LOCKOUT_UNTIL_KEY = "titan_lockout_until";
 const LAST_ACTIVE_KEY = "titan_last_active";
@@ -14,21 +18,29 @@ const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 min
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 min after 5 wrong PINs
 
-// Simple but effective hash (no native deps needed)
-function hashPin(pin: string): string {
-  const salt = "MA_TITAN_SALT_2025";
-  const str = pin + salt;
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
-    hash = (hash * 0x01000193) >>> 0;
+// Fix #8: PIN hashing used to be a home-rolled FNV-1a hash with a
+// hardcoded, shared-across-installs salt — trivially brute-forceable
+// offline. Now uses SHA-256 (expo-crypto, native-backed) plus a random
+// per-device salt generated once and kept in SecureStore (hardware-backed
+// keystore/keychain, not plain AsyncStorage).
+async function getOrCreatePinSalt(): Promise<string> {
+  let salt = await SecureStore.getItemAsync(PIN_SALT_KEY);
+  if (!salt) {
+    const randomBytes = await Crypto.getRandomBytesAsync(16);
+    salt = Array.from(randomBytes).map(b => b.toString(16).padStart(2, "0")).join("");
+    await SecureStore.setItemAsync(PIN_SALT_KEY, salt);
   }
-  return hash.toString(16).padStart(8, "0") + "_" + str.length.toString(36);
+  return salt;
+}
+
+async function hashPin(pin: string): Promise<string> {
+  const salt = await getOrCreatePinSalt();
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, pin + salt);
 }
 
 export async function setPIN(pin: string): Promise<void> {
   if (pin.length < 4) throw new Error("PIN must be at least 4 digits");
-  const hashed = hashPin(pin);
+  const hashed = await hashPin(pin);
   await AsyncStorage.setItem(PIN_KEY, hashed);
   await AsyncStorage.removeItem(FAILED_ATTEMPTS_KEY);
   await AsyncStorage.removeItem(LOCKOUT_UNTIL_KEY);
@@ -72,7 +84,7 @@ export async function verifyPIN(pin: string): Promise<PINVerifyResult> {
     const stored = await AsyncStorage.getItem(PIN_KEY);
     if (!stored) return { success: true }; // No PIN set
 
-    const hashed = hashPin(pin);
+    const hashed = await hashPin(pin);
     if (hashed === stored) {
       await AsyncStorage.removeItem(FAILED_ATTEMPTS_KEY);
       await updateLastActive();
@@ -161,8 +173,27 @@ function base64ToBytes(b64: string): Uint8Array {
   return new Uint8Array(bytes);
 }
 
-// Encrypt sensitive value (simple XOR + base64 — enough for local storage)
-export function encryptValue(value: string, key = "TITAN_LOCAL_KEY"): string {
+// Fix #8: the encryption key used to be a hardcoded literal
+// ("TITAN_LOCAL_KEY") baked into the app bundle — anyone decompiling the
+// APK could decrypt every "secure" value on every install. Now each device
+// generates its own random key once at first use and stores it in
+// SecureStore (hardware-backed keystore/keychain), never in source or
+// AsyncStorage. Values already encrypted with the old hardcoded key remain
+// readable via `legacyKey` as a one-time migration fallback.
+const legacyKey = "TITAN_LOCAL_KEY";
+
+async function getOrCreateEncKey(): Promise<string> {
+  let key = await SecureStore.getItemAsync(ENC_KEY_STORE_KEY);
+  if (!key) {
+    const randomBytes = await Crypto.getRandomBytesAsync(32);
+    key = Array.from(randomBytes).map(b => b.toString(16).padStart(2, "0")).join("");
+    await SecureStore.setItemAsync(ENC_KEY_STORE_KEY, key);
+  }
+  return key;
+}
+
+// Encrypt sensitive value (XOR + base64, keyed by a per-device random key)
+export function encryptValue(value: string, key: string): string {
   try {
     const keyBytes = Array.from(key).map(c => c.charCodeAt(0));
     const encrypted = Array.from(value).map((c, i) =>
@@ -172,7 +203,7 @@ export function encryptValue(value: string, key = "TITAN_LOCAL_KEY"): string {
   } catch { return value; }
 }
 
-export function decryptValue(encrypted: string, key = "TITAN_LOCAL_KEY"): string {
+export function decryptValue(encrypted: string, key: string): string {
   try {
     const keyBytes = Array.from(key).map(c => c.charCodeAt(0));
     const bytes = base64ToBytes(encrypted);
@@ -183,13 +214,26 @@ export function decryptValue(encrypted: string, key = "TITAN_LOCAL_KEY"): string
 }
 
 export async function setSecureItem(storageKey: string, value: string): Promise<void> {
-  await AsyncStorage.setItem(storageKey, encryptValue(value));
+  const key = await getOrCreateEncKey();
+  await AsyncStorage.setItem(storageKey, encryptValue(value, key));
 }
 
 export async function getSecureItem(storageKey: string): Promise<string | null> {
   const val = await AsyncStorage.getItem(storageKey);
   if (!val) return null;
-  return decryptValue(val);
+  const key = await getOrCreateEncKey();
+  const decrypted = decryptValue(val, key);
+  // Heuristic fallback: if decrypting with the new per-device key yields
+  // obvious garbage, this value was likely written before the migration
+  // (encrypted with the old hardcoded key) — retry with it once, then
+  // re-save under the new key so it migrates transparently.
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x08\x0e-\x1f]/.test(decrypted)) {
+    const legacyDecrypted = decryptValue(val, legacyKey);
+    await setSecureItem(storageKey, legacyDecrypted);
+    return legacyDecrypted;
+  }
+  return decrypted;
 }
 
 // Setup AppState listener for auto-lock

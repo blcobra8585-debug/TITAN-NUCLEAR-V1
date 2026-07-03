@@ -88,17 +88,29 @@ export default function ChatScreen() {
     setMessages(prev => [...prev, userMsg]);
     setLoading(true);
     saveChatMessage(msg, false).catch(() => {});
-    const reply = await askAI(msg, activeModel);
-    const lilyId = `${Date.now()}l`;
-    const lilyMsg: Msg = { id: lilyId, text: reply, isLily: true, model: activeModel };
-    setMessages(prev => [...prev, lilyMsg]);
-    saveChatMessage(reply, true).catch(() => {});
-    setLoading(false);
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-    if (autoSpeak) {
-      setSpeaking(true); setSpeakingId(lilyId);
-      await speakWithLily(reply);
-      setSpeaking(false); setSpeakingId(null);
+    try {
+      const reply = await askAI(msg, activeModel);
+      const lilyId = `${Date.now()}l`;
+      const lilyMsg: Msg = { id: lilyId, text: reply, isLily: true, model: activeModel };
+      setMessages(prev => [...prev, lilyMsg]);
+      saveChatMessage(reply, true).catch(() => {});
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+      if (autoSpeak) {
+        setSpeaking(true); setSpeakingId(lilyId);
+        await speakWithLily(reply);
+        setSpeaking(false); setSpeakingId(null);
+      }
+    } catch (e: any) {
+      const errMsg: Msg = {
+        id: `${Date.now()}err`,
+        text: "⚠️ Kuch gadbad ho gayi, dobara try karo",
+        isLily: true,
+        model: activeModel,
+      };
+      setMessages(prev => [...prev, errMsg]);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    } finally {
+      setLoading(false);
     }
   }
 
