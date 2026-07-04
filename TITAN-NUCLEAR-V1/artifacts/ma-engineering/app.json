@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "MA TITAN",
+    "slug": "ma-titan",
+    "version": "3.2.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "matitan",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "backgroundColor": "#060610",
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#060610"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.maengineering.titan"
+    },
+    "android": {
+      "package": "com.maengineering.titan",
+      "versionCode": 7,
+      "googleServicesFile": "./google-services.json",
+      "compileSdkVersion": 36,
+      "targetSdkVersion": 36,
+      "minSdkVersion": 24,
+      "buildToolsVersion": "36.0.0",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#060610"
+      },
+      "permissions": [
+        "android.permission.VIBRATE",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "allowBackup": false,
+      "newArchEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-av",
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#00B4FF",
+          "sounds": []
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ma-engineering-titan"
+      }
+    }
+  }
+}
