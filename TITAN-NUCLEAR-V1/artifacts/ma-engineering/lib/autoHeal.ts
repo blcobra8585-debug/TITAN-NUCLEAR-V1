@@ -103,6 +103,8 @@ export async function withRetry<T>(
 // ---------------------------------------------------------------------------
 const pendingQueue: { fn: () => Promise<void>; context: string; attempts: number }[] = [];
 let healTimer: ReturnType<typeof setInterval> | null = null;
+// Fix: prevent overlapping heal loop iterations when item.fn() takes > 5s
+let _healRunning = false;
 
 export async function safeSyncToFirebase(
   fn: () => Promise<void>,
@@ -133,33 +135,41 @@ export async function safeSyncToFirebase(
 function startHealLoop(): void {
   if (healTimer) return;
   healTimer = setInterval(async () => {
-    if (pendingQueue.length === 0) {
-      clearInterval(healTimer!);
-      healTimer = null;
-      return;
-    }
-    const item = pendingQueue[0];
-    if (!item) {
-      clearInterval(healTimer!);
-      healTimer = null;
-      return;
-    }
+    // Fix: prevent overlapping iterations — if item.fn() takes longer than 5s
+    // the next tick would race against the still-running one and double-shift.
+    if (_healRunning) return;
+    _healRunning = true;
     try {
-      await item.fn();
-      pendingQueue.shift(); // success — remove
-    } catch {
-      item.attempts++;
-      // Fix #5: guard against attempts somehow starting at/above MAX_RETRY
-      if (item.attempts >= MAX_RETRY) {
-        pendingQueue.shift(); // give up after max retries
-        await reportError({
-          message: "Sync failed after " + String(MAX_RETRY) + " attempts",
-          context: item.context,
-          timestamp: Date.now(),
-          appVersion: APP_VERSION,
-          healed: false,
-        });
+      if (pendingQueue.length === 0) {
+        clearInterval(healTimer!);
+        healTimer = null;
+        return;
       }
+      const item = pendingQueue[0];
+      if (!item) {
+        clearInterval(healTimer!);
+        healTimer = null;
+        return;
+      }
+      try {
+        await item.fn();
+        pendingQueue.shift(); // success — remove
+      } catch {
+        item.attempts++;
+        // Fix #5: guard against attempts somehow starting at/above MAX_RETRY
+        if (item.attempts >= MAX_RETRY) {
+          pendingQueue.shift(); // give up after max retries
+          await reportError({
+            message: "Sync failed after " + String(MAX_RETRY) + " attempts",
+            context: item.context,
+            timestamp: Date.now(),
+            appVersion: APP_VERSION,
+            healed: false,
+          });
+        }
+      }
+    } finally {
+      _healRunning = false;
     }
   }, 5000);
 }

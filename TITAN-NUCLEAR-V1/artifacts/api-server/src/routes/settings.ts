@@ -39,11 +39,17 @@ function encrypt(text: string): string {
 }
 
 function decrypt(data: string): string {
-  const [ivHex, tagHex, encHex] = data.split(":");
+  // Fix: validate the split result before non-null asserting — a truncated or
+  // tampered .enc file would previously throw an opaque TypeError here.
+  const parts = data.split(":");
+  if (parts.length < 3) {
+    throw new Error("Invalid encrypted settings format — file may be corrupt or was written with a different key");
+  }
+  const [ivHex, tagHex, encHex] = parts as [string, string, string];
   const key = getKey();
-  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex!, "hex"));
-  decipher.setAuthTag(Buffer.from(tagHex!, "hex"));
-  return decipher.update(Buffer.from(encHex!, "hex")) + decipher.final("utf8");
+  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
+  decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+  return decipher.update(Buffer.from(encHex, "hex")) + decipher.final("utf8");
 }
 
 function loadSettings(): Record<string, string> {
@@ -109,10 +115,13 @@ router.post("/settings/send-wa", async (req, res) => {
 
   const clean = phone.replace(/\D/g, "");
   try {
+    // Fix: add a 15s timeout — without it a hung Facebook connection would
+    // block this Express worker indefinitely.
     const resp = await fetch(`https://graph.facebook.com/v18.0/${wabaId}/messages`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ messaging_product: "whatsapp", to: clean, type: "text", text: { body: message } }),
+      signal: AbortSignal.timeout(15000),
     });
     const data = await resp.json() as { messages?: unknown; error?: { message: string } };
     if (resp.ok && data.messages) {

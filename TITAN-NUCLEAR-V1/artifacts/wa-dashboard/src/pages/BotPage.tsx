@@ -29,7 +29,9 @@ export default function BotPage() {
   const fetchStats = useCallback(async () => {
     try {
       const r = await fetch(`${BASE}/api/bot/status`);
-      const data = await r.json();
+      // Fix: guard against non-JSON body (502/504 HTML error pages cause a
+      // SyntaxError that bubbles past the outer catch and freezes the UI).
+      const data = await r.json().catch(() => ({}));
       setStats(data);
     } catch {
       // API not connected
@@ -39,7 +41,8 @@ export default function BotPage() {
   const fetchReplies = useCallback(async () => {
     try {
       const r = await fetch(`${BASE}/api/wa/bot-replies`);
-      const data = await r.json();
+      // Fix: guard against non-JSON body
+      const data = await r.json().catch(() => ({ replies: [] }));
       setReplies(data.replies ?? []);
     } catch {}
   }, []);
@@ -57,7 +60,7 @@ export default function BotPage() {
     try {
       const endpoint = stats.enabled ? "disable" : "enable";
       const r = await fetch(`${BASE}/api/bot/${endpoint}`, { method: "POST" });
-      const data = await r.json();
+      const data = await r.json().catch(() => ({}));
       toast.success(data.message ?? (stats.enabled ? "Bot OFF!" : "Bot ON!"));
       fetchStats();
     } catch {
@@ -76,7 +79,7 @@ export default function BotPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ geminiKey }),
       });
-      const data = await r.json();
+      const data = await r.json().catch(() => ({}));
       toast.success(data.message ?? "Key save ho gayi!");
     } catch {
       toast.error("API connect nahi hua — key locally save ki");

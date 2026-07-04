@@ -174,7 +174,12 @@ export async function initWAClient(): Promise<void> {
 
         // Handle bot auto-reply for new messages
         if (type === "notify") {
-          handleIncomingMessage(msg);
+          // Fix: add .catch() so any error that escapes handleIncomingMessage's
+          // own try/catch (e.g. a throw before the try block is entered) doesn't
+          // become an unhandled promise rejection that can crash the process.
+          handleIncomingMessage(msg).catch((e: any) => {
+            logger.error({ err: e?.message }, "handleIncomingMessage unhandled rejection");
+          });
         }
       }
     });

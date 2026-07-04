@@ -36,6 +36,9 @@ export default function GlowOrb({
   const t = useSharedValue(0);
 
   useEffect(() => {
+    // Fix: add `duration` to dep array — previously the animation was started
+    // once at mount with the initial duration value and never restarted if the
+    // prop changed, causing the orb to keep the old speed silently.
     t.value = withRepeat(
       withSequence(
         withTiming(1, { duration, easing: Easing.inOut(Easing.sin) }),
@@ -44,7 +47,7 @@ export default function GlowOrb({
       -1,
       false
     );
-  }, []);
+  }, [duration]);
 
   const animatedStyle = useAnimatedStyle(() => {
     const translateX = (t.value - 0.5) * 2 * driftX;

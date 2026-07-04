@@ -34,7 +34,11 @@ export default function AnalyticsPage() {
     const q = query(collection(db, "quotes"), orderBy("createdAt","desc"));
     const unsub = onSnapshot(q, snap => {
       setQuotes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Quote)));
-    }, () => {});
+    }, (err) => {
+      // Fix: previously empty callback left the loading/data state unresolved
+      // on Firestore permission errors. Now log and leave quotes as [] (initial).
+      console.warn("[AnalyticsPage] Firestore snapshot error:", err?.message);
+    });
     return () => unsub();
   }, []);
 

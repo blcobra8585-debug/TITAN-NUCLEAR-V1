@@ -20,7 +20,9 @@ router.get("/revenue", async (req, res) => {
     const db = getFirestore();
     const snap = await db.collection("quotes").get();
     let total = 0;
-    snap.docs.forEach((d) => { total += (d.data().quotedAmount as number) ?? 0; });
+    // Fix: use Number() + fallback so a missing/malformed quotedAmount field
+    // yields 0 instead of NaN, which would silently corrupt the total.
+    snap.docs.forEach((d) => { total += Number(d.data().quotedAmount) || 0; });
     res.json({ total, formatted: total >= 100000 ? `₹${(total / 100000).toFixed(2)}L` : `₹${total.toFixed(0)}` });
   } catch (err) {
     req.log.error({ err }, "Failed to get revenue");

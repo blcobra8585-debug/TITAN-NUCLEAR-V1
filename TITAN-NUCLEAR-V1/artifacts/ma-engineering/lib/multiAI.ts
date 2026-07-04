@@ -138,6 +138,9 @@ const GPT_API_MAP: Record<string, string> = {
   "gpt-4o": "gpt-4o", "gpt-4o-mini": "gpt-4o-mini",
   "gpt-4-turbo": "gpt-4-turbo", "gpt-3.5-turbo": "gpt-3.5-turbo",
 };
+// Fix: cap at 41 entries (system + 20 user/assistant pairs) so module-level
+// history arrays don't grow unbounded during a long session.
+const MAX_HISTORY = 41;
 const gptHistory: { role: "user" | "assistant" | "system"; content: string }[] = [
   { role: "system", content: MA_SYSTEM_PROMPT },
 ];
@@ -145,6 +148,7 @@ const gptHistory: { role: "user" | "assistant" | "system"; content: string }[] =
 async function askOpenAI(message: string, modelId: AIModel): Promise<string> {
   const key = await AsyncStorage.getItem("openai_api_key");
   if (!key) return "⚙️ OpenAI API key chahiye — Admin Panel mein set karo!";
+  if (gptHistory.length >= MAX_HISTORY) gptHistory.splice(1, 2); // drop oldest user+assistant pair
   gptHistory.push({ role: "user", content: message });
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -180,6 +184,7 @@ const claudeHistory: { role: "user" | "assistant"; content: string }[] = [];
 async function askClaude(message: string, modelId: AIModel): Promise<string> {
   const key = await AsyncStorage.getItem("anthropic_api_key");
   if (!key) return "⚙️ Anthropic API key chahiye — Admin Panel mein set karo!";
+  if (claudeHistory.length >= MAX_HISTORY - 1) claudeHistory.splice(0, 2);
   claudeHistory.push({ role: "user", content: message });
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -217,6 +222,7 @@ const groqHistory: { role: "user" | "assistant" | "system"; content: string }[] 
 async function askGroq(message: string, modelId: AIModel): Promise<string> {
   const key = await AsyncStorage.getItem("groq_api_key");
   if (!key) return "⚙️ Groq API key chahiye (free at console.groq.com) — Admin Panel mein set karo!";
+  if (groqHistory.length >= MAX_HISTORY) groqHistory.splice(1, 2);
   groqHistory.push({ role: "user", content: message });
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -248,6 +254,7 @@ const deepseekHistory: { role: "user" | "assistant" | "system"; content: string 
 async function askDeepSeek(message: string, modelId: AIModel): Promise<string> {
   const key = await AsyncStorage.getItem("deepseek_api_key");
   if (!key) return "⚙️ DeepSeek API key chahiye — Admin Panel mein set karo!";
+  if (deepseekHistory.length >= MAX_HISTORY) deepseekHistory.splice(1, 2);
   deepseekHistory.push({ role: "user", content: message });
   try {
     const model = modelId === "deepseek-coder" ? "deepseek-coder" : "deepseek-chat";
@@ -279,6 +286,7 @@ const mistralHistory: { role: "user" | "assistant" | "system"; content: string }
 async function askMistral(message: string, modelId: AIModel): Promise<string> {
   const key = await AsyncStorage.getItem("mistral_api_key");
   if (!key) return "⚙️ Mistral API key chahiye — Admin Panel mein set karo!";
+  if (mistralHistory.length >= MAX_HISTORY) mistralHistory.splice(1, 2);
   mistralHistory.push({ role: "user", content: message });
   try {
     const model = modelId === "mistral-large" ? "mistral-large-latest" : "mistral-small-latest";

@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { addDoc, collection, getDocs, orderBy, query } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, firebaseReady } from "./firebase";
 
 export interface JobRole {
   role: string;
@@ -93,6 +93,10 @@ export async function generateJobPost(roleData: JobRole, location: string): Prom
 }
 
 export async function saveJobPostToFirebase(post: JobPost): Promise<string> {
+  // Fix: check firebaseReady — recruitmentBot.ts was calling Firestore directly
+  // without the guard that firebaseService.ts uses, which would crash if Firebase
+  // failed to initialize.
+  if (!firebaseReady) throw new Error("Firebase not ready — job post not saved");
   const ref = await addDoc(collection(db, "job_postings"), {
     ...post,
     status: "active",
@@ -105,6 +109,8 @@ export async function saveJobPostToFirebase(post: JobPost): Promise<string> {
 }
 
 export async function getJobPostsFromFirebase(): Promise<(JobPost & { id: string })[]> {
+  // Fix: check firebaseReady before touching Firestore
+  if (!firebaseReady) return [];
   try {
     const q = query(collection(db, "job_postings"), orderBy("postedAt", "desc"));
     const snap = await getDocs(q);

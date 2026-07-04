@@ -6,6 +6,9 @@ const BASE_URL = "https://api.elevenlabs.io/v1";
 
 // Track current playing sound so we can stop it
 let _currentSound: Audio.Sound | null = null;
+// Generation counter — incremented on every new speakWithLily call so an
+// overlapping call can detect it was superseded and bail out cleanly.
+let _speakGeneration = 0;
 
 /**
  * Convert ArrayBuffer to base64 string without FileReader.
@@ -34,12 +37,22 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 export async function speakWithLily(text: string): Promise<void> {
+  // Fix race condition: capture a generation ID before any await.
+  // If another speakWithLily call starts while we're awaiting, it increments
+  // _speakGeneration and we bail out before assigning _currentSound —
+  // preventing the previous sound from being orphaned/leaked.
+  const myGen = ++_speakGeneration;
+
   try {
     // Stop any currently playing audio before starting a new one
     await stopSpeaking();
 
+    // Bail if a newer call superseded us during stopSpeaking()
+    if (myGen !== _speakGeneration) return;
+
     const apiKey = await AsyncStorage.getItem("elevenlabs_api_key").catch(() => null);
     if (!apiKey) return;
+    if (myGen !== _speakGeneration) return;
 
     const voiceId =
       (await AsyncStorage.getItem("elevenlabs_voice_id").catch(() => null)) ??
@@ -68,20 +81,38 @@ export async function speakWithLily(text: string): Promise<void> {
       }
     );
     if (!resp.ok) return;
+    if (myGen !== _speakGeneration) return;
 
     // FIX: React Native has no FileReader — use arrayBuffer() + btoa() instead
     const arrayBuffer = await resp.arrayBuffer();
     const base64 = arrayBufferToBase64(arrayBuffer);
 
+    if (myGen !== _speakGeneration) return;
+
     const { sound } = await Audio.Sound.createAsync(
       { uri: `data:audio/mp3;base64,${base64}` },
       { shouldPlay: true, volume: 1.0 }
     );
+
+    // Final generation check before assigning — prevents orphaned audio objects
+    if (myGen !== _speakGeneration) {
+      sound.unloadAsync().catch(() => {});
+      return;
+    }
     _currentSound = sound;
 
+    // Fix: add a 90s safety timeout so the promise never hangs forever if
+    // didJustFinish never fires (e.g. audio error after playback starts).
     await new Promise<void>((resolve) => {
+      const safetyTimer = setTimeout(() => {
+        sound.unloadAsync().catch(() => {});
+        _currentSound = null;
+        resolve();
+      }, 90_000);
+
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded && status.didJustFinish) {
+          clearTimeout(safetyTimer);
           sound.unloadAsync().catch(() => {});
           _currentSound = null;
           resolve();

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { logger } from "../lib/logger";
 import { generateBotReply } from "../lib/lilyBot";
+import { getFirestore } from "../lib/firebaseAdmin";
 
 const router = Router();
 
@@ -23,6 +24,23 @@ interface Lead {
 }
 
 const leadsStore: Lead[] = [];
+
+// Fix: hydrate leadsStore from Firestore on startup so leads survive restarts.
+// Runs async without blocking route registration — any Firestore failure is
+// non-fatal and logs a warning; the server continues with an empty in-memory store.
+(async () => {
+  try {
+    const db = getFirestore();
+    const snap = await db.collection("leads").orderBy("timestamp", "desc").limit(200).get();
+    snap.docs.forEach((d) => {
+      const lead = d.data() as Lead;
+      if (!leadsStore.find(l => l.id === lead.id)) leadsStore.push(lead);
+    });
+    logger.info({ count: leadsStore.length }, "Leads hydrated from Firestore");
+  } catch (err: any) {
+    logger.warn({ err: err?.message }, "Failed to hydrate leads from Firestore — starting with empty store");
+  }
+})();
 
 // ── IndiaMART Lead Fetch ──────────────────────────
 router.get("/indiamart", async (req: Request, res: Response) => {
@@ -71,10 +89,27 @@ router.get("/indiamart", async (req: Request, res: Response) => {
       replied: false,
     }));
 
-    // Add new leads to store
+    // Add new leads to in-memory store and persist to Firestore
+    const genuinelyNew: Lead[] = [];
     for (const lead of newLeads) {
       if (!leadsStore.find(l => l.id === lead.id)) {
         leadsStore.unshift(lead);
+        genuinelyNew.push(lead);
+      }
+    }
+    // Fix: persist new leads to Firestore so they survive server restarts.
+    if (genuinelyNew.length > 0) {
+      try {
+        const db = getFirestore();
+        const batch = db.batch();
+        for (const lead of genuinelyNew) {
+          batch.set(db.collection("leads").doc(lead.id), lead);
+        }
+        await batch.commit();
+      } catch (fbErr: any) {
+        // Non-fatal: leads are in memory; Firestore write failure just means
+        // they won't survive a restart.
+        logger.warn({ err: fbErr?.message }, "Failed to persist leads to Firestore");
       }
     }
     logger.info({ count: newLeads.length }, "IndiaMART leads fetched");

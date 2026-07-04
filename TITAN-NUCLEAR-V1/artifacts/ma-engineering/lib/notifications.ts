@@ -55,7 +55,10 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let lastCount = 0;
 
 export function startBotReplyPolling(serverUrl: string): void {
-  if (!serverUrl || pollTimer) return;
+  // Fix: clear existing timer first so a serverUrl change doesn't orphan the
+  // old interval while the new one is never started (old guard was too strict).
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (!serverUrl) return;
   pollTimer = setInterval(async () => {
     try {
       const res = await fetch(`${serverUrl}/api/wa/bot-replies`, { signal: timeoutSignal(5000) });

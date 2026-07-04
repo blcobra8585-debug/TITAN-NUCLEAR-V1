@@ -47,17 +47,24 @@ export async function saveQuote(data: {
     console.warn("[firebaseService] saveQuote skipped — Firebase not ready");
     return;
   }
-  await addDoc(collection(db, "quotes"), {
-    ...data,
-    status: "pending",
-    paymentStatus: "unpaid",
-    invoiced: false,
-    notes: data.notes ?? "",
-    referredBy: data.referredBy ?? "",
-    leadSource: data.leadSource ?? "Direct",
-    timestamp: serverTimestamp(),
-    createdAt: serverTimestamp(),
-  });
+  // Fix: wrap in try/catch — firebaseReady check only guards init failure,
+  // not runtime errors (Permission Denied, network loss, etc.).
+  try {
+    await addDoc(collection(db, "quotes"), {
+      ...data,
+      status: "pending",
+      paymentStatus: "unpaid",
+      invoiced: false,
+      notes: data.notes ?? "",
+      referredBy: data.referredBy ?? "",
+      leadSource: data.leadSource ?? "Direct",
+      timestamp: serverTimestamp(),
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.warn("[firebaseService] saveQuote failed:", err);
+    throw err;
+  }
 }
 
 export async function updateQuoteNotes(docId: string, notes: string) {
@@ -108,7 +115,13 @@ export function listenToQuotes(
 
 export async function updateQuoteStatus(docId: string, status: string) {
   if (!firebaseReady) return;
-  await updateDoc(doc(db, "quotes", docId), { status });
+  // Fix: wrap in try/catch — same as saveQuote
+  try {
+    await updateDoc(doc(db, "quotes", docId), { status });
+  } catch (err) {
+    console.warn("[firebaseService] updateQuoteStatus failed:", err);
+    throw err;
+  }
 }
 
 export async function saveChatMessage(message: string, isLily: boolean) {

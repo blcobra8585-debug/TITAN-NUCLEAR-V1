@@ -172,6 +172,10 @@ function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
 
   React.useEffect(() => {
+    // Fix: dep was [state] which caused the listener to be removed and
+    // re-added on every toast state change — causing redundant re-renders
+    // and a brief window where no listener was registered. Empty array is
+    // correct: setState identity is stable for the lifetime of the component.
     listeners.push(setState)
     return () => {
       const index = listeners.indexOf(setState)
@@ -179,7 +183,7 @@ function useToast() {
         listeners.splice(index, 1)
       }
     }
-  }, [state])
+  }, [])
 
   return {
     ...state,

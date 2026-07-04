@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert, Linking } from "react-native";
+import Constants from "expo-constants";
 
 const GITHUB_RELEASE_URL = "https://api.github.com/repos/blcobra8585-debug/TITAN-NUCLEAR-V1/releases/latest";
 const CHECK_INTERVAL_KEY = "last_update_check";
@@ -19,7 +20,9 @@ export async function autoCheckUpdate(): Promise<void> {
     const latestTag: string = release?.tag_name ?? "";
     const downloadUrl: string = release?.assets?.[0]?.browser_download_url ?? "";
     if (!downloadUrl) return;
-    const currentVersion = "3.2.0";
+    // Fix: read version from app.json via Constants instead of hardcoding —
+    // a hardcoded string drifts out of sync silently after a version bump.
+    const currentVersion: string = Constants.expoConfig?.version ?? "3.2.0";
     if (latestTag && latestTag !== "apk-latest") return;
     const releaseBody: string = release?.body ?? "";
     if (releaseBody.includes(currentVersion)) return;
