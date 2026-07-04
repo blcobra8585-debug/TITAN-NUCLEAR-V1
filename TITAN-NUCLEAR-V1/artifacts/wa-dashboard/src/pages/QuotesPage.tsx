@@ -10,6 +10,10 @@ import { FileText, Zap, Check, X, Clock, Search, Filter, Trash2, Send, Eye, Plus
 interface Quote { id: string; clientName: string; clientPhone?: string; projectType: string; tonnage: number; quotedAmount: number; quoteText: string; status: "pending"|"approved"|"rejected"; createdAt: any; }
 
 const PROJECTS = ["EOT Crane Installation","EOT Crane Dismantling","Gantry Crane Erection","Chimney Installation","Industrial Boiler Setup","Steel Structure Erection","Overhead Crane","Jib Crane Installation"];
+// Fix(H6): base rate extracted as a named constant — was buried in saveQuote as
+// a magic number (5500), making pricing changes invisible and error-prone.
+const BASE_RATE_PER_TON = 5500;
+const QUOTE_MARGIN = 1.25; // 25 % margin applied on top of base rate
 const STATUS_COLORS: Record<string,string> = { pending: "#F59E0B", approved: "#25D366", rejected: "#EF4444" };
 const STATUS_BG: Record<string,string> = { pending: "#F59E0B20", approved: "#25D36620", rejected: "#EF444420" };
 
@@ -58,7 +62,7 @@ export default function QuotesPage() {
     if (!newQuoteText) { toast.error("Pehle quote generate karo"); return; }
     if (!clientPhone.trim()) { toast.error("Client ka phone number daalo (WhatsApp/reminder ke liye zaroori)"); return; }
     try {
-      const amt = parseFloat(tons) * 5500 * 1.25;
+      const amt = parseFloat(tons) * BASE_RATE_PER_TON * QUOTE_MARGIN;
       await addDoc(collection(db, "quotes"), { clientName: client, clientPhone: clientPhone.trim(), projectType: project, tonnage: parseFloat(tons), quotedAmount: amt, quoteText: newQuoteText, status: "pending", paymentStatus: "unpaid", invoiced: false, createdAt: serverTimestamp() });
       toast.success("Quote save ho gaya!");
       setShowNew(false); setClient(""); setClientPhone(""); setTons(""); setNewQuoteText("");

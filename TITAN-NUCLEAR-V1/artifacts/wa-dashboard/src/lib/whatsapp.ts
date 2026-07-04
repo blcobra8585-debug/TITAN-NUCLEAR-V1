@@ -1,6 +1,11 @@
+// Fix(H5): version extracted as a constant — update here when Meta deprecates v18.0.
+const WA_API_VERSION = "v18.0";
+
 export async function sendWAMessage(phone: string, message: string, token: string, wabaId: string) {
-  const clean = phone.replace(/\D/g, "");
-  const res = await fetch(`https://graph.facebook.com/v18.0/${wabaId}/messages`, {
+  let clean = phone.replace(/\D/g, "");
+  // Fix(L2): auto-prefix country code 91 for bare 10-digit Indian numbers.
+  if (clean.length === 10) clean = "91" + clean;
+  const res = await fetch(`https://graph.facebook.com/${WA_API_VERSION}/${wabaId}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", to: clean, type: "text", text: { body: message } }),

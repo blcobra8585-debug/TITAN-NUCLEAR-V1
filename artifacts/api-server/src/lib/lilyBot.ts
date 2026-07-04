@@ -43,6 +43,20 @@ interface ConversationMessage {
 }
 
 const conversationHistory: Map<string, ConversationMessage[]> = new Map();
+// Fix(H1): track last-access time per phone so inactive entries can be evicted.
+// Without this the Map grows forever — one entry per unique caller, never deleted.
+const conversationLastAccess: Map<string, number> = new Map();
+const HISTORY_TTL_MS = 24 * 60 * 60 * 1000; // 24 h
+
+setInterval(() => {
+  const cutoff = Date.now() - HISTORY_TTL_MS;
+  for (const [phone, ts] of conversationLastAccess) {
+    if (ts < cutoff) {
+      conversationHistory.delete(phone);
+      conversationLastAccess.delete(phone);
+    }
+  }
+}, 30 * 60 * 1000); // run every 30 min
 
 let botEnabled = true;
 let geminiKey: string | null = null;
@@ -111,6 +125,7 @@ export async function generateBotReply(phone: string, userMessage: string): Prom
     if (!conversationHistory.has(phone)) {
       conversationHistory.set(phone, []);
     }
+    conversationLastAccess.set(phone, Date.now()); // refresh TTL on every message
     const history = conversationHistory.get(phone)!;
 
     const chat = model.startChat({

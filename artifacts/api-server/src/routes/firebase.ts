@@ -28,10 +28,18 @@ router.get("/revenue", async (req, res) => {
   }
 });
 
+const VALID_QUOTE_STATUSES = new Set(["pending", "approved", "rejected"]);
+
 router.patch("/quotes/:id/status", async (req, res) => {
   try {
-    const db = getFirestore();
+    // Fix(M3): whitelist status values — unvalidated body lets any caller write
+    // arbitrary strings (or nested objects) directly into Firestore.
     const { status } = req.body as { status: string };
+    if (!status || !VALID_QUOTE_STATUSES.has(status)) {
+      res.status(400).json({ error: `Invalid status. Must be one of: ${[...VALID_QUOTE_STATUSES].join(", ")}` });
+      return;
+    }
+    const db = getFirestore();
     await db.collection("quotes").doc(req.params.id).update({ status });
     res.json({ success: true });
   } catch (err) {

@@ -48,10 +48,16 @@ export default function BotPage() {
   }, []);
 
   useEffect(() => {
-    fetchStats();
-    fetchReplies();
-    const t = setInterval(() => { fetchStats(); fetchReplies(); }, 5000);
-    return () => clearInterval(t);
+    // Fix(M4): recursive setTimeout instead of setInterval — guarantees the
+    // next fetch only starts after the previous one finishes, so slow networks
+    // can't stack up concurrent requests that race each other.
+    let alive = true;
+    async function poll() {
+      await Promise.all([fetchStats(), fetchReplies()]);
+      if (alive) setTimeout(poll, 5000);
+    }
+    poll();
+    return () => { alive = false; };
   }, [fetchStats, fetchReplies]);
 
   async function toggleBot() {

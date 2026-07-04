@@ -23,6 +23,10 @@ interface WAState {
   botReplies: { phone: string; userMsg: string; botMsg: string; time: number }[];
 }
 
+// Fix(M1): keep a handle on the pending reconnect timer so we can cancel it
+// before scheduling a new one — prevents stacked concurrent sockets.
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
 const state: WAState = {
   status: "disconnected",
   qrDataUrl: null,
@@ -150,7 +154,9 @@ export async function initWAClient(): Promise<void> {
         state.sock = null;
         logger.info({ shouldReconnect }, "WA connection closed");
         if (shouldReconnect) {
-          setTimeout(() => initWAClient(), 3000);
+          // Fix(M1): clear any pending reconnect before scheduling a new one
+          if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+          reconnectTimer = setTimeout(() => { reconnectTimer = null; initWAClient(); }, 3000);
         }
       } else if (connection === "open") {
         state.status = "connected";

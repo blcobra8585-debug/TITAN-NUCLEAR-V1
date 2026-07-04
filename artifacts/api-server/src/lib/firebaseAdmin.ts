@@ -9,16 +9,21 @@ export function getFirebaseAdmin(): admin.app.App {
   try {
     const serviceAccount = process.env["FIREBASE_SERVICE_ACCOUNT_JSON"];
 
+    // Fix(L1): use env var so bucket name doesn't need a code push when
+    // the Firebase project changes. Falls back to the known default.
+    const storageBucket =
+      process.env["FIREBASE_STORAGE_BUCKET"] ?? "ma-engineering-titan.firebasestorage.app";
+
     if (serviceAccount) {
       admin.initializeApp({
         credential: admin.credential.cert(JSON.parse(serviceAccount)),
-        storageBucket: "ma-engineering-titan.firebasestorage.app",
+        storageBucket,
       });
     } else {
       admin.initializeApp({
         credential: admin.credential.applicationDefault(),
-        projectId: "ma-engineering-titan",
-        storageBucket: "ma-engineering-titan.firebasestorage.app",
+        projectId: process.env["FIREBASE_PROJECT_ID"] ?? "ma-engineering-titan",
+        storageBucket,
       });
     }
 

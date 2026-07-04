@@ -27,9 +27,12 @@ export function makeInvoiceNumber(quoteId: string) {
 export function generateInvoicePDF(quote: InvoiceQuote, invoiceNumber: string, amountPaid: number) {
   const doc = new jsPDF();
   const subtotal = quote.quotedAmount;
-  const gst = subtotal * GST_RATE;
-  const grandTotal = subtotal + gst;
-  const balance = Math.max(grandTotal - amountPaid, 0);
+  // Fix(M6/M7): round to nearest rupee before any display or further arithmetic.
+  // Floating-point ops on large amounts (e.g. 550000 * 0.18) produce values like
+  // 99000.00000000001 which print inconsistently across toLocaleString calls.
+  const gst = Math.round(subtotal * GST_RATE);
+  const grandTotal = subtotal + gst;                      // subtotal is already an integer from Firestore
+  const balance = Math.max(Math.round(grandTotal - amountPaid), 0);
 
   doc.setFontSize(18);
   doc.setTextColor(0, 120, 180);
