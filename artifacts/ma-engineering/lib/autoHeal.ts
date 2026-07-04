@@ -1,10 +1,12 @@
 /**
  * TITAN AUTO-HEAL SYSTEM
- * Automatically detects, reports, and recovers from errors
- * Reports crashes to Firebase, retries failed operations
- * Self-healing data sync
+ * Automatically detects, reports, and recovers from errors.
+ * Crash reports go to Firebase Crashlytics (native) — visible in the
+ * Firebase Console → Crashlytics dashboard with device info, OS version,
+ * and full stack trace — plus a Firestore 'error_logs' backup.
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { db } from "./firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { timeoutSignal } from "@/lib/timeout";
@@ -17,6 +19,9 @@ export interface ErrorReport {
   appVersion: string;
   healed: boolean;
   healAction?: string;
+  /** Device metadata — sent to both Crashlytics and Firestore */
+  os?: string;
+  osVersion?: string | number;
 }
 
 const APP_VERSION = "3.2.0";
@@ -24,17 +29,86 @@ const MAX_RETRY = 3;
 const RETRY_DELAY_MS = 2000;
 const MAX_QUEUE_LENGTH = 50;
 
-// Report error to Firebase silently
+// ---------------------------------------------------------------------------
+// Safe Crashlytics wrapper
+// @react-native-firebase/crashlytics is a native module — it won't be
+// available in Expo Go or web, so every call is wrapped in try/catch.
+// ---------------------------------------------------------------------------
+type CrashlyticsInstance = {
+  recordError: (err: Error) => void;
+  setAttributes: (attrs: Record<string, string>) => void;
+  setUserId: (id: string) => void;
+  log: (msg: string) => void;
+};
+
+let _crashlytics: CrashlyticsInstance | null = null;
+let _clLoaded = false;
+
+async function getCrashlytics(): Promise<CrashlyticsInstance | null> {
+  if (_clLoaded) return _crashlytics;
+  _clLoaded = true;
+  try {
+    // Dynamic import keeps it off the critical startup path so a missing
+    // native module never blocks the splash screen.
+    const mod = await import("@react-native-firebase/crashlytics");
+    const instance = mod.default ? mod.default() : null;
+    if (instance) {
+      // Tag every session with app version + platform so Crashlytics
+      // dashboard filters work without opening individual reports.
+      instance.setAttributes({
+        appVersion: APP_VERSION,
+        platform: Platform.OS,
+        osVersion: String(Platform.Version),
+      });
+      instance.setUserId("admin"); // single-user app
+    }
+    _crashlytics = instance;
+  } catch {
+    _crashlytics = null;
+  }
+  return _crashlytics;
+}
+
+// ---------------------------------------------------------------------------
+// Internal: send one error report to Crashlytics + Firestore
+// ---------------------------------------------------------------------------
 async function reportError(error: ErrorReport): Promise<void> {
+  const os = Platform.OS;
+  const osVersion = Platform.Version;
+
+  // 1. Crashlytics — appears in Firebase Console → Crashlytics as a
+  //    non-fatal with device model, OS, app version, and full stack.
+  try {
+    const cl = await getCrashlytics();
+    if (cl) {
+      cl.setAttributes({
+        context: error.context.slice(0, 128),
+        appVersion: error.appVersion,
+        healed: String(error.healed),
+        os,
+        osVersion: String(osVersion),
+        ...(error.healAction ? { healAction: error.healAction } : {}),
+      });
+      const err = new Error(error.message);
+      if (error.stack) err.stack = error.stack;
+      cl.recordError(err);
+    }
+  } catch {} // Never let the reporter itself crash
+
+  // 2. Firestore — keeps a searchable history in error_logs collection
   try {
     await addDoc(collection(db, "error_logs"), {
       ...error,
+      os,
+      osVersion,
       reportedAt: serverTimestamp(),
     });
-  } catch {} // Never throw from error reporter
+  } catch {}
 }
 
-// Retry a function with exponential backoff
+// ---------------------------------------------------------------------------
+// Public: retry wrapper with exponential back-off
+// ---------------------------------------------------------------------------
 export async function withRetry<T>(
   fn: () => Promise<T>,
   context: string,
@@ -51,7 +125,6 @@ export async function withRetry<T>(
       }
     }
   }
-  // Report after all retries failed
   await reportError({
     message: lastError?.message ?? "Unknown error",
     stack: lastError?.stack,
@@ -63,7 +136,9 @@ export async function withRetry<T>(
   throw lastError;
 }
 
-// Safe Firebase sync — queue failed ops and retry
+// ---------------------------------------------------------------------------
+// Public: safe Firebase sync — queue and retry failed operations
+// ---------------------------------------------------------------------------
 const pendingQueue: { fn: () => Promise<void>; context: string; attempts: number }[] = [];
 let healTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -74,8 +149,7 @@ export async function safeSyncToFirebase(
   try {
     await fn();
   } catch {
-    // Fix #5: cap the queue so a persistently failing sync can't grow
-    // unbounded and leak memory — drop the oldest pending item to make room.
+    // Cap the queue so a persistently failing sync never grows unbounded
     if (pendingQueue.length >= MAX_QUEUE_LENGTH) {
       const dropped = pendingQueue.shift();
       if (dropped) {
@@ -109,15 +183,13 @@ function startHealLoop(): void {
     }
     try {
       await item.fn();
-      pendingQueue.shift(); // success — remove
+      pendingQueue.shift();
     } catch {
       item.attempts++;
-      // Fix #5: guard against attempts somehow starting at/above MAX_RETRY
-      // (off-by-one safety net) so the loop always terminates this item.
       if (item.attempts >= MAX_RETRY) {
-        pendingQueue.shift(); // give up after max retries
+        pendingQueue.shift();
         await reportError({
-          message: `Sync failed after ${MAX_RETRY} attempts`,
+          message: "Sync failed after " + MAX_RETRY + " attempts",
           context: item.context,
           timestamp: Date.now(),
           appVersion: APP_VERSION,
@@ -128,8 +200,28 @@ function startHealLoop(): void {
   }, 5000);
 }
 
-// Crash reporter for ErrorBoundary
+// ---------------------------------------------------------------------------
+// Public: crash reporter — called from ErrorBoundary and safeRun
+// Sends to Crashlytics (native dashboard) + Firestore + local backup.
+// ---------------------------------------------------------------------------
 export async function reportCrash(error: Error, context: string): Promise<void> {
+  try {
+    // Crashlytics gets the real Error object so it shows a proper
+    // symbolicated stack trace, grouped by crash signature.
+    const cl = await getCrashlytics();
+    if (cl) {
+      cl.log("[TITAN] crash in: " + context.slice(0, 128));
+      cl.setAttributes({
+        context: context.slice(0, 128),
+        appVersion: APP_VERSION,
+        platform: Platform.OS,
+        osVersion: String(Platform.Version),
+      });
+      cl.recordError(error);
+    }
+  } catch {}
+
+  // Firestore + local backup (keeps working even if Crashlytics is offline)
   try {
     await reportError({
       message: error.message,
@@ -139,14 +231,21 @@ export async function reportCrash(error: Error, context: string): Promise<void> 
       appVersion: APP_VERSION,
       healed: false,
     });
-    // Save locally as backup
     const logs = JSON.parse((await AsyncStorage.getItem("crash_logs")) ?? "[]");
-    logs.unshift({ message: error.message, context, ts: Date.now() });
+    logs.unshift({
+      message: error.message,
+      context,
+      os: Platform.OS,
+      osVersion: Platform.Version,
+      ts: Date.now(),
+    });
     await AsyncStorage.setItem("crash_logs", JSON.stringify(logs.slice(0, 10)));
   } catch {}
 }
 
-// Network connectivity check
+// ---------------------------------------------------------------------------
+// Network check
+// ---------------------------------------------------------------------------
 export async function isOnline(): Promise<boolean> {
   try {
     const res = await fetch("https://www.google.com", {
@@ -157,7 +256,9 @@ export async function isOnline(): Promise<boolean> {
   } catch { return false; }
 }
 
-// Self-healing AsyncStorage — validate and clean corrupted keys
+// ---------------------------------------------------------------------------
+// Storage healer — cleans corrupted AsyncStorage keys
+// ---------------------------------------------------------------------------
 export async function healStorage(): Promise<void> {
   try {
     const keysToValidate = [
@@ -173,7 +274,9 @@ export async function healStorage(): Promise<void> {
   } catch {}
 }
 
-// Auto-diagnose and fix common issues
+// ---------------------------------------------------------------------------
+// Auto-diagnostics
+// ---------------------------------------------------------------------------
 export interface DiagnosticResult {
   issue: string;
   status: "ok" | "warning" | "error";
@@ -184,19 +287,13 @@ export interface DiagnosticResult {
 export async function runDiagnostics(): Promise<DiagnosticResult[]> {
   const results: DiagnosticResult[] = [];
 
-  // Check Gemini API key
   const geminiKey = await AsyncStorage.getItem("gemini_api_key");
   if (!geminiKey || geminiKey.length < 10) {
-    results.push({
-      issue: "Gemini API Key missing",
-      status: "warning",
-      fix: "Admin Panel → Gemini API Key set karo",
-    });
+    results.push({ issue: "Gemini API Key missing", status: "warning", fix: "Admin Panel → Gemini API Key set karo" });
   } else {
     results.push({ issue: "Gemini API Key", status: "ok" });
   }
 
-  // Check ElevenLabs key
   const elKey = await AsyncStorage.getItem("elevenlabs_api_key");
   results.push({
     issue: "ElevenLabs Voice Key",
@@ -204,29 +301,22 @@ export async function runDiagnostics(): Promise<DiagnosticResult[]> {
     fix: elKey ? undefined : "Admin Panel → ElevenLabs key set karo (optional)",
   });
 
-  // Check IndiaMART credentials
   const imGlid = await AsyncStorage.getItem("indiamart_glid");
   const imKey = await AsyncStorage.getItem("indiamart_key");
+  results.push({ issue: "IndiaMART GLID", status: imGlid ? "ok" : "warning", fix: imGlid ? undefined : "Leads Tab → IndiaMART setup karo" });
+  results.push({ issue: "IndiaMART Key", status: imKey ? "ok" : "warning", fix: imKey ? undefined : "Leads Tab → IndiaMART Key set karo" });
+
+  // Crashlytics status
+  const cl = await getCrashlytics();
   results.push({
-    issue: "IndiaMART GLID",
-    status: imGlid ? "ok" : "warning",
-    fix: imGlid ? undefined : "Leads Tab → IndiaMART setup karo",
-  });
-  results.push({
-    issue: "IndiaMART Key",
-    status: imKey ? "ok" : "warning",
-    fix: imKey ? undefined : "Leads Tab → IndiaMART Key set karo",
+    issue: "Firebase Crashlytics",
+    status: cl ? "ok" : "warning",
+    fix: cl ? undefined : "Native module not available — crash reports go to Firestore only",
   });
 
-  // Check network
   const online = await isOnline();
-  results.push({
-    issue: "Internet Connection",
-    status: online ? "ok" : "error",
-    fix: online ? undefined : "Internet check karo",
-  });
+  results.push({ issue: "Internet Connection", status: online ? "ok" : "error", fix: online ? undefined : "Internet check karo" });
 
-  // Storage health
   await healStorage();
   results.push({ issue: "Storage Health", status: "ok", fixed: true });
 
