@@ -1,28 +1,32 @@
 import type { NextFunction, Request, Response } from "express";
 import { logger } from "../lib/logger";
 
-let warnedNoKeyConfigured = false;
-
 /**
- * Fix #11: mutating routes (send WhatsApp messages, add/reply leads, write
- * to Firestore) previously had zero auth — anyone who discovered the server
- * URL could trigger them. This checks a shared secret sent as `x-api-key`.
+ * Shared-secret API authentication middleware.
  *
- * If API_SECRET_KEY is not configured, requests are allowed through (so the
- * server keeps working out-of-the-box) but a warning is logged once so the
- * gap is visible instead of silent.
+ * Every protected request must include:
+ *   X-API-Key: <value of API_INTERNAL_KEY env var>
+ *
+ * Two env vars are intentionally separate:
+ *   API_SECRET_KEY   — AES-256 file encryption only (settings.ts)
+ *   API_INTERNAL_KEY — HTTP request auth only (this file)
+ *
+ * Fail-closed: if API_INTERNAL_KEY is not set, reject every request with
+ * 401. An obviously-broken server gets noticed; a silently-open one doesn't.
  */
 export function requireApiKey(req: Request, res: Response, next: NextFunction): void {
-  const expected = process.env["API_SECRET_KEY"];
+  const expected = process.env["API_INTERNAL_KEY"];
 
   if (!expected) {
-    if (!warnedNoKeyConfigured) {
-      logger.warn(
-        "API_SECRET_KEY is not set — all API routes are unauthenticated. Set API_SECRET_KEY to require the x-api-key header.",
-      );
-      warnedNoKeyConfigured = true;
-    }
-    next();
+    logger.error(
+      { path: req.path },
+      "API_INTERNAL_KEY is not set — rejecting all API requests. " +
+        "Set API_INTERNAL_KEY in your deployment environment."
+    );
+    res.status(401).json({
+      success: false,
+      error: "Server misconfiguration: API_INTERNAL_KEY not set.",
+    });
     return;
   }
 
@@ -32,5 +36,6 @@ export function requireApiKey(req: Request, res: Response, next: NextFunction): 
     return;
   }
 
+  logger.warn({ path: req.path, ip: req.ip }, "Rejected — missing or invalid x-api-key");
   res.status(401).json({ success: false, error: "Unauthorized — missing or invalid x-api-key" });
 }
