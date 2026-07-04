@@ -86,33 +86,45 @@ export default function HistoryScreen() {
 
   async function updateStatus(id: string, status: Quote["status"]) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await updateDoc(doc(db, "quotes", id), { status });
-    setSelected(prev => prev?.id === id ? { ...prev, status } : prev);
+    try {
+      await updateDoc(doc(db, "quotes", id), { status });
+      setSelected(prev => prev?.id === id ? { ...prev, status } : prev);
+    } catch {
+      Alert.alert("❌ Error", "Status update nahi hua. Dobara try karo.");
+    }
   }
 
   async function markPaid(q: Quote) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await updateDoc(doc(db, "quotes", q.id), {
-      paymentStatus: "paid",
-      amountPaid: q.quotedAmount,
-    });
-    setSelected(prev => prev?.id === q.id ? { ...prev, paymentStatus: "paid", amountPaid: q.quotedAmount } : prev);
-    burstRef.current?.fire();
+    try {
+      await updateDoc(doc(db, "quotes", q.id), {
+        paymentStatus: "paid",
+        amountPaid: q.quotedAmount,
+      });
+      setSelected(prev => prev?.id === q.id ? { ...prev, paymentStatus: "paid", amountPaid: q.quotedAmount } : prev);
+      burstRef.current?.fire();
+    } catch {
+      Alert.alert("❌ Error", "Payment mark nahi hua. Dobara try karo.");
+    }
   }
 
   async function deleteQuote(id: string) {
     Alert.alert("Delete?", "Is quote ko delete karein?", [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: async () => {
-        await deleteDoc(doc(db, "quotes", id));
-        setSelected(null);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        try {
+          await deleteDoc(doc(db, "quotes", id));
+          setSelected(null);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        } catch {
+          Alert.alert("❌ Error", "Delete nahi hua. Dobara try karo.");
+        }
       }},
     ]);
   }
 
   async function sendViaWA(q: Quote) {
-    const msg = `🏗️ *MA ENGINEERING — Quote*\n\nClient: *${q.clientName}*\nProject: *${q.projectType}*\nTonnage: ${q.tonnage}T\n\n${q.quoteText}\n\n*Value: ${fmt(q.quotedAmount)}*\n\n*MA Engineering* | Suhan Siddiqui\n📞 +917895643069`;
+    const msg = `🏗️ *MA ENGINEERING — Quote*\n\nClient: *${q.clientName}*\nProject: *${q.projectType}*\nTonnage: ${q.tonnage}T\n\n${q.quoteText}\n\n*Value: ${fmt(q.quotedAmount)}*\n\n✅ *MA Engineering* | 15+ Years | Zero-Accident Record | Pan-India Projects`;
     const digits = (q.clientPhone ?? "").replace(/\D/g, "");
     if (digits.length < 10) {
       Alert.alert("Phone Missing", "Is quote me client ka phone save nahi hai. Naya quote banate waqt phone number bhi add karo.");
@@ -136,21 +148,29 @@ export default function HistoryScreen() {
 
   async function saveNotes(q: Quote) {
     Haptics.selectionAsync();
-    await updateQuoteNotes(q.id, notesDraft.trim());
-    setSelected(prev => prev?.id === q.id ? { ...prev, notes: notesDraft.trim() } : prev);
-    Alert.alert("✅", "Notes saved.");
+    try {
+      await updateQuoteNotes(q.id, notesDraft.trim());
+      setSelected(prev => prev?.id === q.id ? { ...prev, notes: notesDraft.trim() } : prev);
+      Alert.alert("✅", "Notes saved.");
+    } catch {
+      Alert.alert("❌ Error", "Notes save nahi huye. Dobara try karo.");
+    }
   }
 
   async function saveAmcDate(q: Quote) {
     if (!amcDraft.trim()) return;
     Haptics.selectionAsync();
-    await setQuoteAmcDate(q.id, amcDraft.trim());
-    setSelected(prev => prev?.id === q.id ? { ...prev, amcDate: amcDraft.trim() } : prev);
-    const d = new Date(amcDraft.trim());
-    if (!isNaN(d.getTime())) {
-      await scheduleReminder("AMC Reminder", `${q.clientName} ka AMC due hai — ${q.projectType}`, d);
+    try {
+      await setQuoteAmcDate(q.id, amcDraft.trim());
+      setSelected(prev => prev?.id === q.id ? { ...prev, amcDate: amcDraft.trim() } : prev);
+      const d = new Date(amcDraft.trim());
+      if (!isNaN(d.getTime())) {
+        await scheduleReminder("AMC Reminder", `${q.clientName} ka AMC due hai — ${q.projectType}`, d);
+      }
+      Alert.alert("✅", "AMC date set — reminder scheduled.");
+    } catch {
+      Alert.alert("❌ Error", "AMC date save nahi hui. Dobara try karo.");
     }
-    Alert.alert("✅", "AMC date set — reminder scheduled.");
   }
 
   async function generateInvoice(q: Quote) {
@@ -160,24 +180,29 @@ export default function HistoryScreen() {
       return;
     }
     setAiBusy("invoice");
-    const invoiceNumber = `INV-${q.id.slice(0, 6).toUpperCase()}`;
-    const msg = buildInvoiceMessage({
-      client: q.clientName,
-      project: q.projectType,
-      invoiceNumber,
-      amount: q.quotedAmount,
-      amountPaid: q.amountPaid ?? 0,
-      lang: language,
-    });
-    await markQuoteInvoiced(q.id, invoiceNumber);
-    setSelected(prev => prev?.id === q.id ? { ...prev, invoiced: true, invoiceNumber } : prev);
-    const r = await sendWhatsAppMessage(phone, msg);
-    setAiBusy(null);
-    if (r.success) {
-      burstRef.current?.fire();
-      Alert.alert("✅", "Invoice generate karke WhatsApp pe bhej diya!");
-    } else {
-      Alert.alert("ℹ️", "Invoice save ho gaya, lekin WhatsApp send fail hua: " + (r.error ?? ""));
+    try {
+      const invoiceNumber = `INV-${q.id.slice(0, 6).toUpperCase()}`;
+      const msg = buildInvoiceMessage({
+        client: q.clientName,
+        project: q.projectType,
+        invoiceNumber,
+        amount: q.quotedAmount,
+        amountPaid: q.amountPaid ?? 0,
+        lang: language,
+      });
+      await markQuoteInvoiced(q.id, invoiceNumber);
+      setSelected(prev => prev?.id === q.id ? { ...prev, invoiced: true, invoiceNumber } : prev);
+      const r = await sendWhatsAppMessage(phone, msg);
+      if (r.success) {
+        burstRef.current?.fire();
+        Alert.alert("✅", "Invoice generate karke WhatsApp pe bhej diya!");
+      } else {
+        Alert.alert("ℹ️", "Invoice save ho gaya, lekin WhatsApp send fail hua: " + (r.error ?? ""));
+      }
+    } catch (e: any) {
+      Alert.alert("❌ Error", e.message?.slice(0, 100) ?? "Invoice generate nahi hua.");
+    } finally {
+      setAiBusy(null);
     }
   }
 
@@ -188,17 +213,22 @@ export default function HistoryScreen() {
       return;
     }
     setAiBusy("followup");
-    const daysSince = q.createdAt?.toDate
-      ? Math.floor((Date.now() - q.createdAt.toDate().getTime()) / 86400000)
-      : 0;
-    const msg = await generateFollowUp({ client: q.clientName, project: q.projectType, daysSinceQuote: daysSince, status: q.status });
-    const r = await sendWhatsAppMessage(phone, msg);
-    setAiBusy(null);
-    if (r.success) {
-      burstRef.current?.fire();
-      Alert.alert("✅", "AI follow-up bhej diya!");
-    } else {
-      Alert.alert("ℹ️", r.error ?? "WhatsApp send failed.");
+    try {
+      const daysSince = q.createdAt?.toDate
+        ? Math.floor((Date.now() - q.createdAt.toDate().getTime()) / 86400000)
+        : 0;
+      const msg = await generateFollowUp({ client: q.clientName, project: q.projectType, daysSinceQuote: daysSince, status: q.status });
+      const r = await sendWhatsAppMessage(phone, msg);
+      if (r.success) {
+        burstRef.current?.fire();
+        Alert.alert("✅", "AI follow-up bhej diya!");
+      } else {
+        Alert.alert("ℹ️", r.error ?? "WhatsApp send failed.");
+      }
+    } catch (e: any) {
+      Alert.alert("❌ Error", e.message?.slice(0, 100) ?? "Follow-up generate nahi hua.");
+    } finally {
+      setAiBusy(null);
     }
   }
 
@@ -213,16 +243,21 @@ export default function HistoryScreen() {
       return;
     }
     setAiBusy("negotiate");
-    const msg = await generateNegotiationReply({ client: q.clientName, project: q.projectType, quotedAmount: q.quotedAmount, clientOffer: clientOffer.trim() });
-    const r = await sendWhatsAppMessage(phone, msg);
-    setAiBusy(null);
-    setNegotiateModal(false);
-    setClientOffer("");
-    if (r.success) {
-      burstRef.current?.fire();
-      Alert.alert("✅", "Negotiation reply bhej diya!");
-    } else {
-      Alert.alert("ℹ️", r.error ?? "WhatsApp send failed.");
+    try {
+      const msg = await generateNegotiationReply({ client: q.clientName, project: q.projectType, quotedAmount: q.quotedAmount, clientOffer: clientOffer.trim() });
+      const r = await sendWhatsAppMessage(phone, msg);
+      setNegotiateModal(false);
+      setClientOffer("");
+      if (r.success) {
+        burstRef.current?.fire();
+        Alert.alert("✅", "Negotiation reply bhej diya!");
+      } else {
+        Alert.alert("ℹ️", r.error ?? "WhatsApp send failed.");
+      }
+    } catch (e: any) {
+      Alert.alert("❌ Error", e.message?.slice(0, 100) ?? "Negotiation reply nahi gayi.");
+    } finally {
+      setAiBusy(null);
     }
   }
 

@@ -71,7 +71,7 @@ export async function generateJobPost(roleData: JobRole, location: string): Prom
       `*Location:* ${cleanLocation}\n` +
       `*Skills:* ${roleData.skills.join(", ")}\n` +
       `*Salary:* ${salary}\n\n` +
-      `Apply/WhatsApp: +917895643069\n` +
+      `Contact MA Engineering for details!\n` +
       `#Hiring #MAEngineering`;
     const now = Date.now();
     return { ...roleData, location: cleanLocation, salary, postContent, createdAt: now, postedAt: now, active: true, applications: 0 };
@@ -83,7 +83,7 @@ export async function generateJobPost(roleData: JobRole, location: string): Prom
     `You are a recruitment manager for MA Engineering (industrial cranes + chimneys company in India). ` +
     `Write ONE professional hiring post in Hinglish for WhatsApp/LinkedIn.\n\n` +
     `Role: ${roleData.role}\nExperience: ${roleData.exp}\nSkills: ${roleData.skills.join(", ")}\nLocation: ${cleanLocation}\nSalary/Benefits: ${salary}\n\n` +
-    `Must include:\n- short hook line\n- bullet points for responsibilities + requirements\n- location + salary/benefits\n- CTA: WhatsApp/Call +917895643069\n- 5 relevant hashtags\n` +
+    `Must include:\n- short hook line\n- bullet points for responsibilities + requirements\n- location + salary/benefits\n- CTA: "Contact MA Engineering for details! Apply via WhatsApp"\n- 5 relevant hashtags\n` +
     `Keep it crisp (max 1200 chars).`;
 
   const result = await model.generateContent(prompt);

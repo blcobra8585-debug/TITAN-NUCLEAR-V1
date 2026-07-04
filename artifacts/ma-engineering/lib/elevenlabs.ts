@@ -35,6 +35,9 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 
 export async function speakWithLily(text: string): Promise<void> {
   try {
+    // Stop any currently playing audio before starting a new one
+    await stopSpeaking();
+
     const apiKey = await AsyncStorage.getItem("elevenlabs_api_key").catch(() => null);
     if (!apiKey) return;
 

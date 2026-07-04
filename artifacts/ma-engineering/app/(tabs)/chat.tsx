@@ -73,7 +73,7 @@ export default function ChatScreen() {
 
   async function selectModel(model: AIModel) {
     setActiveModel(model);
-    await AsyncStorage.setItem("titan_active_model", model);
+    AsyncStorage.setItem("titan_active_model", model).catch(() => {});
     setShowModelPicker(false);
     Haptics.selectionAsync();
   }
@@ -116,12 +116,18 @@ export default function ChatScreen() {
 
   async function handleSpeak(msg: Msg) {
     if (speakingId === msg.id && speaking) {
-      await stopSpeaking(); setSpeaking(false); setSpeakingId(null); return;
+      try { await stopSpeaking(); } catch {}
+      setSpeaking(false); setSpeakingId(null); return;
     }
     setSpeaking(true); setSpeakingId(msg.id);
     Haptics.selectionAsync();
-    await speakWithLily(msg.text);
-    setSpeaking(false); setSpeakingId(null);
+    try {
+      await speakWithLily(msg.text);
+    } catch {
+      // swallow TTS errors — speaking state must always reset
+    } finally {
+      setSpeaking(false); setSpeakingId(null);
+    }
   }
 
   function clearChat() {

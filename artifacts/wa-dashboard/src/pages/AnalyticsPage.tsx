@@ -8,14 +8,6 @@ const COLORS = ["#00B4FF","#25D366","#7B2FFF","#F59E0B","#EF4444","#00FFD1"];
 
 interface Quote { id: string; clientName: string; projectType: string; tonnage: number; quotedAmount: number; status: string; createdAt: any; }
 
-const DEMO: Quote[] = [
-  { id:"1", clientName:"Ramesh Kumar", projectType:"EOT Crane Installation", tonnage:50, quotedAmount:687500, status:"approved", createdAt: { toDate:()=>new Date(2026,3,10) } },
-  { id:"2", clientName:"Vijay Steel", projectType:"Chimney Installation", tonnage:30, quotedAmount:412500, status:"approved", createdAt: { toDate:()=>new Date(2026,3,15) } },
-  { id:"3", clientName:"Suresh Industries", projectType:"Gantry Crane", tonnage:100, quotedAmount:1375000, status:"pending", createdAt: { toDate:()=>new Date(2026,4,1) } },
-  { id:"4", clientName:"Bharat Ltd", projectType:"EOT Crane Installation", tonnage:75, quotedAmount:1031250, status:"approved", createdAt: { toDate:()=>new Date(2026,4,5) } },
-  { id:"5", clientName:"Ajay Works", projectType:"Steel Structure", tonnage:40, quotedAmount:550000, status:"rejected", createdAt: { toDate:()=>new Date(2026,4,7) } },
-];
-
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function StatCard({ label, value, sub, color, icon: Icon, trend }: { label:string; value:string; sub?:string; color:string; icon:any; trend?:string }) {
@@ -35,14 +27,13 @@ function StatCard({ label, value, sub, color, icon: Icon, trend }: { label:strin
 }
 
 export default function AnalyticsPage() {
-  const [quotes, setQuotes] = useState<Quote[]>(DEMO);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
   const [period, setPeriod] = useState<"week"|"month"|"year">("month");
 
   useEffect(() => {
     const q = query(collection(db, "quotes"), orderBy("createdAt","desc"));
     const unsub = onSnapshot(q, snap => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Quote));
-      if (data.length > 0) setQuotes(data);
+      setQuotes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Quote)));
     }, () => {});
     return () => unsub();
   }, []);
@@ -179,7 +170,7 @@ export default function AnalyticsPage() {
       {/* MA Engineering Info */}
       <div className="bg-gradient-to-br from-[#00B4FF]/10 to-[#7B2FFF]/10 border border-[#00B4FF]/30 rounded-xl p-4 text-center space-y-2">
         <div className="text-base font-bold gradient-text">MA ENGINEERING</div>
-        <div className="text-xs text-muted-foreground">Admin: Suhan Siddiqui</div>
+        <div className="text-xs text-muted-foreground">Industrial Cranes • Chimneys • Steel Structures</div>
         <div className="grid grid-cols-3 gap-2 mt-2">
           {[["15+","Years Exp"],["200T","Max Capacity"],["0","Accidents"]].map(([v,l]) => (
             <div key={l}>

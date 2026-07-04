@@ -209,7 +209,7 @@ export default function BotPage() {
         <div className="space-y-2">
           {[
             { cmd: "quote / price / rate", desc: "Lily quote generate karegi" },
-            { cmd: "contact / manager", desc: "Suhan sir ka number degi" },
+            { cmd: "contact / manager", desc: "Admin contact details bhejegi" },
             { cmd: "meeting / visit", desc: "Meeting schedule karne ki info" },
             { cmd: "catalog / brochure", desc: "Catalog bhejne ka message" },
             { cmd: "!human", desc: "Human agent ko handoff" },

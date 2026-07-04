@@ -84,19 +84,29 @@ export default function WhatsAppScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     setStatus("connecting");
-    const s = await startWAConnect();
-    setStatus(s.status);
-    setQr(s.qr);
-    setLoading(false);
+    try {
+      const s = await startWAConnect();
+      setStatus(s.status);
+      setQr(s.qr);
+    } catch {
+      setStatus("disconnected");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function disconnect() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     setLoading(true);
-    await disconnectWA();
-    setStatus("disconnected");
-    setQr(null);
-    setLoading(false);
+    try {
+      await disconnectWA();
+    } catch {
+      // ignore disconnect errors
+    } finally {
+      setStatus("disconnected");
+      setQr(null);
+      setLoading(false);
+    }
   }
 
   async function toggleBot() {

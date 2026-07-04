@@ -36,8 +36,7 @@ const AI_KEYS: ApiKeyField[] = [
 const SERVICE_KEYS: ApiKeyField[] = [
   { label: "WhatsApp Meta Token", storageKey: "wa_token",      color: "#25D366", icon: "💬", placeholder: "EAAx..." },
   { label: "WhatsApp WABA ID",    storageKey: "waba_id",       color: "#25D366", icon: "#️⃣", placeholder: "1234567890..." },
-  { label: "Replit Server URL",   storageKey: "server_url",     color: "#F26207", icon: "🖥️", placeholder: "https://....repl.co/api" },
-  { label: "Server API Key",      storageKey: "server_api_key", color: "#FF4444", icon: "🔑", placeholder: "Matches API_INTERNAL_KEY on server" },
+  { label: "Replit Server URL",   storageKey: "server_url",    color: "#F26207", icon: "🖥️", placeholder: "https://....repl.co/api" },
 ];
 
 export default function AdminScreen() {
@@ -176,9 +175,9 @@ export default function AdminScreen() {
       <View style={[styles.card, { borderColor: `${colors.accent}50` }]}>
         <Icon3D name="shield" size={24} bgSize={48} color={colors.accent} glow />
         <View style={{ flex: 1, marginLeft: 14 }}>
-          <Text style={[styles.adminName, { color: colors.foreground }]}>Suhan Siddiqui</Text>
-          <Text style={[styles.adminSub, { color: colors.mutedForeground }]}>Master Admin • MA Engineering</Text>
-          <Text style={[styles.adminSub, { color: colors.neonBlue }]}>+917895643069</Text>
+          <Text style={[styles.adminName, { color: colors.foreground }]}>MA Engineering</Text>
+          <Text style={[styles.adminSub, { color: colors.mutedForeground }]}>Master Admin Panel</Text>
+          <Text style={[styles.adminSub, { color: colors.neonBlue }]}>15+ Years • Pan-India Projects</Text>
         </View>
       </View>
 

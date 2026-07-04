@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { getTotalRevenue } from "@/lib/firebaseService";
+import { getSecureItem, setSecureItem } from "@/lib/security";
 
 interface AppContextType {
   titanMode: boolean;
@@ -38,10 +39,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const [tm, gk, wa, wb, el, su] = await Promise.all([
         AsyncStorage.getItem("titan_mode").catch(() => null),
-        AsyncStorage.getItem("gemini_api_key").catch(() => null),
-        AsyncStorage.getItem("wa_token").catch(() => null),
-        AsyncStorage.getItem("waba_id").catch(() => null),
-        AsyncStorage.getItem("elevenlabs_api_key").catch(() => null),
+        getSecureItem("gemini_api_key").catch(() => null),
+        getSecureItem("wa_token").catch(() => null),
+        getSecureItem("waba_id").catch(() => null),
+        getSecureItem("elevenlabs_api_key").catch(() => null),
         AsyncStorage.getItem("server_url").catch(() => null),
       ]);
       setTitanModeState(tm === "true");
@@ -63,19 +64,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTotalRevenue(rev);
   };
   const setGeminiKey = async (key: string) => {
-    await AsyncStorage.setItem("gemini_api_key", key).catch(() => {});
+    await setSecureItem("gemini_api_key", key).catch(() => {});
     setGeminiKeyState(key);
   };
   const setWaToken = async (token: string) => {
-    await AsyncStorage.setItem("wa_token", token).catch(() => {});
+    await setSecureItem("wa_token", token).catch(() => {});
     setWaTokenState(token);
   };
   const setWabaId = async (id: string) => {
-    await AsyncStorage.setItem("waba_id", id).catch(() => {});
+    await setSecureItem("waba_id", id).catch(() => {});
     setWabaIdState(id);
   };
   const setElevenLabsKey = async (key: string) => {
-    await AsyncStorage.setItem("elevenlabs_api_key", key).catch(() => {});
+    await setSecureItem("elevenlabs_api_key", key).catch(() => {});
     setElevenLabsKeyState(key);
   };
   const setServerUrl = async (url: string) => {

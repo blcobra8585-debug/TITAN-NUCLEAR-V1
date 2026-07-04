@@ -97,7 +97,7 @@ export default function DashboardScreen() {
         <ReAnimated.View entering={FadeInDown.duration(500)} style={styles.row}>
           <View>
             <Text style={[styles.logo, { color: colors.neonBlue }]}>MA TITAN</Text>
-            <Text style={[styles.sub, { color: colors.mutedForeground }]}>Suhan Siddiqui • Admin</Text>
+            <Text style={[styles.sub, { color: colors.mutedForeground }]}>MA Engineering • Admin</Text>
           </View>
           <TouchableOpacity
             style={[styles.iconBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
@@ -132,7 +132,7 @@ export default function DashboardScreen() {
                 <ActivityIndicator color={colors.neonCyan} style={{ marginTop: 10 }} />
               ) : (
                 <Text style={[styles.revenueAmount, { color: colors.neonCyan }]}>
-                  {fmt(totalRevenue + 1130000)}
+                  {fmt(totalRevenue)}
                 </Text>
               )}
               <View style={styles.miniTrend}>

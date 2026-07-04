@@ -35,11 +35,7 @@ export default function QuotesPage() {
     const unsub = onSnapshot(q, snap => {
       setQuotes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Quote)));
     }, () => {
-      setQuotes([
-        { id: "1", clientName: "Ramesh Kumar", projectType: "EOT Crane Installation", tonnage: 50, quotedAmount: 687500, quoteText: "Professional EOT crane installation quote for 50T capacity...", status: "pending", createdAt: new Date() },
-        { id: "2", clientName: "Vijay Steel", clientPhone: "919876543210", projectType: "Chimney Installation", tonnage: 30, quotedAmount: 412500, quoteText: "Chimney installation project quote...", status: "approved", createdAt: new Date() },
-        { id: "3", clientName: "Suresh Industries", clientPhone: "919812345670", projectType: "Gantry Crane Erection", tonnage: 100, quotedAmount: 1375000, quoteText: "Gantry crane erection detailed quote...", status: "rejected", createdAt: new Date() },
-      ]);
+      toast.error("Quotes load nahi hue. Internet check karo.");
     });
     return () => unsub();
   }, []);
@@ -48,34 +44,51 @@ export default function QuotesPage() {
     if (!client || !tons) { toast.error("Client naam aur tonnage daalein"); return; }
     if (!geminiKey) { toast.error("Gemini API key Settings mein daalo"); return; }
     setGenerating(true);
-    const text = await generateQuoteText(client, project, parseFloat(tons), geminiKey);
-    setNewQuoteText(text);
-    setGenerating(false);
+    try {
+      const text = await generateQuoteText(client, project, parseFloat(tons), geminiKey);
+      setNewQuoteText(text);
+    } catch {
+      toast.error("Quote generate nahi hua. Dobara try karo.");
+    } finally {
+      setGenerating(false);
+    }
   }
 
   async function saveQuote() {
     if (!newQuoteText) { toast.error("Pehle quote generate karo"); return; }
     if (!clientPhone.trim()) { toast.error("Client ka phone number daalo (WhatsApp/reminder ke liye zaroori)"); return; }
-    const amt = parseFloat(tons) * 5500 * 1.25;
-    await addDoc(collection(db, "quotes"), { clientName: client, clientPhone: clientPhone.trim(), projectType: project, tonnage: parseFloat(tons), quotedAmount: amt, quoteText: newQuoteText, status: "pending", paymentStatus: "unpaid", invoiced: false, createdAt: serverTimestamp() });
-    toast.success("Quote save ho gaya!");
-    setShowNew(false); setClient(""); setClientPhone(""); setTons(""); setNewQuoteText("");
+    try {
+      const amt = parseFloat(tons) * 5500 * 1.25;
+      await addDoc(collection(db, "quotes"), { clientName: client, clientPhone: clientPhone.trim(), projectType: project, tonnage: parseFloat(tons), quotedAmount: amt, quoteText: newQuoteText, status: "pending", paymentStatus: "unpaid", invoiced: false, createdAt: serverTimestamp() });
+      toast.success("Quote save ho gaya!");
+      setShowNew(false); setClient(""); setClientPhone(""); setTons(""); setNewQuoteText("");
+    } catch {
+      toast.error("Quote save nahi hua. Dobara try karo.");
+    }
   }
 
   async function updateStatus(id: string, status: string) {
-    await updateDoc(doc(db, "quotes", id), { status });
-    toast.success(`Status update: ${status}`);
+    try {
+      await updateDoc(doc(db, "quotes", id), { status });
+      toast.success(`Status update: ${status}`);
+    } catch {
+      toast.error("Status update nahi hua.");
+    }
   }
 
   async function deleteQuote(id: string) {
-    await deleteDoc(doc(db, "quotes", id));
-    toast.success("Quote delete ho gaya");
+    try {
+      await deleteDoc(doc(db, "quotes", id));
+      toast.success("Quote delete ho gaya");
+    } catch {
+      toast.error("Delete nahi hua.");
+    }
   }
 
   async function sendViaWA(q: Quote) {
     if (!waToken || !wabaId) { toast.error("WA token settings mein daalo"); return; }
     if (!q.clientPhone) { toast.error("Is quote mein client ka phone number nahi hai"); return; }
-    const msg = `🏗️ *MA ENGINEERING — Quote*\n\nClient: *${q.clientName}*\nProject: *${q.projectType}*\n\n${q.quoteText}\n\nQuote Value: *₹${(q.quotedAmount/100000).toFixed(2)}L*\n\n*MA Engineering* | Suhan Siddiqui`;
+    const msg = `🏗️ *MA ENGINEERING — Quote*\n\nClient: *${q.clientName}*\nProject: *${q.projectType}*\n\n${q.quoteText}\n\nQuote Value: *₹${(q.quotedAmount/100000).toFixed(2)}L*\n\n✅ *MA Engineering* | 15+ Years | Zero-Accident Record | Pan-India`;
     toast.loading("Bhej raha hoon...");
     const r = await sendWAMessage(q.clientPhone, msg, waToken, wabaId);
     toast.dismiss();

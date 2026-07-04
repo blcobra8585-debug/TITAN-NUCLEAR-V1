@@ -90,7 +90,7 @@ export default function PaymentsPage() {
       toast.error("Client ka phone number quote mein nahi hai");
       return;
     }
-    const msg = `🔔 *Payment Reminder — MA Engineering*\n\nHi ${row.quote.clientName},\nAapka ${row.quote.projectType} ke liye balance due hai: *₹${row.balance.toLocaleString("en-IN")}*\n\nPlease jaldi clear karein. Koi query ho to Suhan sir se: +917895643069`;
+    const msg = `🔔 *Payment Reminder — MA Engineering*\n\nHi ${row.quote.clientName},\nAapka ${row.quote.projectType} ke liye balance due hai: *₹${row.balance.toLocaleString("en-IN")}*\n\nPlease jaldi clear karein. Koi bhi query ho to hamare office se contact karein. 🙏\n\n✅ *MA Engineering* | Pan-India Projects`;
     toast.loading("Reminder bhej raha hoon...");
     const r = await sendWAMessage(row.quote.clientPhone, msg, waToken, wabaId);
     toast.dismiss();

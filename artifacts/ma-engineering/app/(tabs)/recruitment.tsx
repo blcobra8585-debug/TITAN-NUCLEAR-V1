@@ -95,18 +95,26 @@ export default function RecruitmentScreen() {
   async function generateAll() {
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    let count = 0;
-    for (const roleName of selectedRoles.slice(0, 5)) {
-      const roleData = JOB_ROLES.find(r => r.role === roleName) ?? JOB_ROLES[0];
-      try {
-        const post = await generateJobPost(roleData, customLocation);
-        if (post) { await saveJobPostToFirebase(post); count++; }
-      } catch {}
+    let count = 0, failed = 0;
+    try {
+      for (const roleName of selectedRoles.slice(0, 5)) {
+        const roleData = JOB_ROLES.find(r => r.role === roleName) ?? JOB_ROLES[0];
+        try {
+          const post = await generateJobPost(roleData, customLocation);
+          if (post) { await saveJobPostToFirebase(post); count++; }
+        } catch { failed++; }
+      }
+      await loadData();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const msg = failed > 0
+        ? `${count} posts generate huye, ${failed} fail huye.`
+        : `${count} job posts generate ho gaye! WhatsApp aur social media pe share karo.`;
+      Alert.alert("✅ Done!", msg);
+    } catch (e: any) {
+      Alert.alert("❌ Error", e.message ?? "Generate fail hua.");
+    } finally {
+      setLoading(false);
     }
-    await loadData();
-    setLoading(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert("✅ Done!", `${count} job posts generate ho gaye! WhatsApp aur social media pe share karo.`);
   }
 
   function toggleRole(role: string) {
