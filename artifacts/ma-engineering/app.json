@@ -54,9 +54,7 @@
           "color": "#00B4FF",
           "sounds": []
         }
-      ],
-      "@react-native-firebase/app",
-      "@react-native-firebase/crashlytics"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
