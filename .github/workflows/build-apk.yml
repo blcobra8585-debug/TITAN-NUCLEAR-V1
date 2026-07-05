@@ -62,6 +62,10 @@ jobs:
 
           # 2. Inject REACT_NATIVE_WORKLETS_NODE_MODULES_DIR into app/build.gradle
           WORKLETS_PKG=$(find $(pwd)/node_modules/.pnpm -path "*/react-native-worklets/package.json" -maxdepth 10 2>/dev/null | grep -v "worklets-core" | head -1)
+          if [ -z "$WORKLETS_PKG" ]; then
+            echo "::error::Could not locate react-native-worklets package.json under node_modules/.pnpm — aborting build instead of injecting an empty path"
+            exit 1
+          fi
           WORKLETS_ABS=$(dirname "$WORKLETS_PKG")
           echo "Found react-native-worklets at: $WORKLETS_ABS"
 
