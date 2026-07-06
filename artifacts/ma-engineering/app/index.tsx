@@ -24,8 +24,10 @@ const APP_NAME = "MA TITAN";
 export default function SplashScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  // Track whether navigation succeeded — used by stuck detector
-  const navigatedRef = useRef(false);
+  // isMounted tracks whether this component is still on screen.
+  // Navigation success → component unmounts → isMounted.current = false.
+  // Stuck detector checks isMounted.current after 10s — if still true, we're stuck.
+  const isMounted = useRef(true);
 
   // Logo: dramatic 3D flip-in (rotateY 100deg -> 0) with perspective +
   // spring scale pop, then settles into a slow perpetual hover-spin.
@@ -100,18 +102,17 @@ export default function SplashScreen() {
       diagLog("SplashScreen", "timer fired — calling router.replace('/(tabs)')");
       diagStage("navigating to tabs…");
       try {
-        navigatedRef.current = true;
         router.replace("/(tabs)");
       } catch (navErr: any) {
-        navigatedRef.current = false;
         diagWarn("SplashScreen/navigate", navErr?.message ?? String(navErr));
         sendSplashStuckAlert(Date.now() - SPLASH_START).catch(() => {});
       }
     }, 3400);
 
-    // Stuck detector: if tabs haven't loaded after 10 seconds, send WA alert
+    // Stuck detector: agar 10 seconds baad bhi ye component mount hai →
+    // navigation ya tabs crash ho gaya. Component unmount hona = success.
     const stuckTimer = setTimeout(async () => {
-      if (!navigatedRef.current) {
+      if (isMounted.current) {
         const stuckMs = Date.now() - SPLASH_START;
         diagWarn("SplashScreen", `STUCK — ${stuckMs}ms pe bhi tabs nahi khule`);
         await sendSplashStuckAlert(stuckMs).catch(() => {});
@@ -119,6 +120,7 @@ export default function SplashScreen() {
     }, 10000);
 
     return () => {
+      isMounted.current = false; // unmount = navigation succeeded
       clearTimeout(timer);
       clearTimeout(stuckTimer);
     };

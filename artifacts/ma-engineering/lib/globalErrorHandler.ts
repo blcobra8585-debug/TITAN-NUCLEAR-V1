@@ -21,7 +21,8 @@
 import { Alert } from "react-native";
 import { reportCrash } from "@/lib/autoHeal";
 import { diagError } from "@/lib/diagnosticLog";
-import { sendWACrashAlert } from "@/lib/waCrashAlert";
+// NOTE: do NOT import sendWACrashAlert here — reportCrash already calls it
+// internally. Calling it here too causes duplicate WA+Telegram alerts.
 
 let installed = false;
 
@@ -50,13 +51,8 @@ export function installGlobalErrorHandlers(): void {
     g.ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
       const ctx = isFatal ? "fatal-js-error" : "js-error";
       diagError(ctx, error);
+      // reportCrash → Firebase + WA + Telegram (single path, no duplicates)
       reportCrash(error, ctx).catch(() => {});
-      // WhatsApp alert — seedha Suhan bhai ko
-      sendWACrashAlert(
-        isFatal ? "🔴 FATAL App Crash" : "⚠️ App JS Error",
-        error.message + (error.stack ? `\n\n${error.stack.slice(0, 400)}` : ""),
-        ctx
-      ).catch(() => {});
       showCrashAlert(error, isFatal ? "A fatal error occurred" : "An unexpected error occurred");
       defaultHandler(error, isFatal);
     });
@@ -70,13 +66,8 @@ export function installGlobalErrorHandlers(): void {
     g2.process.on("unhandledRejection", (reason: unknown) => {
       const error = reason instanceof Error ? reason : new Error(String(reason));
       diagError("unhandled-rejection", error);
+      // reportCrash → Firebase + WA + Telegram (single path, no duplicates)
       reportCrash(error, "unhandled-promise-rejection").catch(() => {});
-      // WhatsApp alert
-      sendWACrashAlert(
-        "⚠️ Unhandled Promise Rejection",
-        error.message,
-        "unhandled-promise-rejection"
-      ).catch(() => {});
       showCrashAlert(error, "A background task failed");
     });
   }
