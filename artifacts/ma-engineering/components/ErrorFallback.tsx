@@ -23,6 +23,9 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
+  // Show error details in every build, not just __DEV__ — the user needs to
+  // see the real crash reason (not just "Something went wrong") so they can
+  // report or fix it, even on a production APK.
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   const handleRestart = async () => {
@@ -50,23 +53,21 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {__DEV__ ? (
-        <Pressable
-          onPress={() => setIsModalVisible(true)}
-          accessibilityLabel="View error details"
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.topButton,
-            {
-              top: insets.top + 16,
-              backgroundColor: colors.card,
-              opacity: pressed ? 0.8 : 1,
-            },
-          ]}
-        >
-          <Feather name="alert-circle" size={20} color={colors.foreground} />
-        </Pressable>
-      ) : null}
+      <Pressable
+        onPress={() => setIsModalVisible(true)}
+        accessibilityLabel="View error details"
+        accessibilityRole="button"
+        style={({ pressed }) => [
+          styles.topButton,
+          {
+            top: insets.top + 16,
+            backgroundColor: colors.card,
+            opacity: pressed ? 0.8 : 1,
+          },
+        ]}
+      >
+        <Feather name="alert-circle" size={20} color={colors.foreground} />
+      </Pressable>
 
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.foreground }]}>
@@ -74,8 +75,20 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
         </Text>
 
         <Text style={[styles.message, { color: colors.mutedForeground }]}>
-          Please reload the app to continue.
+          {error.message || "An unexpected error occurred."}
         </Text>
+
+        <Pressable
+          onPress={() => setIsModalVisible(true)}
+          style={({ pressed }) => [
+            styles.detailsLink,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <Text style={[styles.detailsLinkText, { color: colors.primary }]}>
+            View full details
+          </Text>
+        </Pressable>
 
         <Pressable
           onPress={handleRestart}
@@ -99,8 +112,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
         </Pressable>
       </View>
 
-      {__DEV__ ? (
-        <Modal
+      <Modal
           visible={isModalVisible}
           animationType="slide"
           transparent={true}
@@ -166,7 +178,6 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
             </View>
           </View>
         </Modal>
-      ) : null}
     </View>
   );
 }
@@ -197,6 +208,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
     lineHeight: 24,
+  },
+  detailsLink: {
+    paddingVertical: 4,
+  },
+  detailsLinkText: {
+    fontSize: 14,
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
   topButton: {
     position: "absolute",
