@@ -1,11 +1,19 @@
 import { Tabs } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import Icon3D from "@/components/Icon3D";
+import { diagBooted, diagLog } from "@/lib/diagnosticLog";
 
 export default function TabLayout() {
   const colors = useColors();
+
+  useEffect(() => {
+    diagLog("TabLayout", "(tabs) layout mounted ✓");
+    // Mark app as fully booted — overlay strip switches to "● Ready"
+    diagBooted();
+  }, []);
+
   return (
     <Tabs
       screenOptions={{

@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { getTotalRevenue } from "@/lib/firebaseService";
 import { getSecureItem, setSecureItem } from "@/lib/security";
+import { diagLog, diagWarn } from "@/lib/diagnosticLog";
 
 interface AppContextType {
   titanMode: boolean;
@@ -32,10 +33,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [serverUrl, setServerUrlState] = useState("");
 
   useEffect(() => {
-    loadSettings().catch(() => {});
+    loadSettings().catch((err) => {
+      diagWarn("AppContext", `loadSettings failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
   }, []);
 
   async function loadSettings() {
+    diagLog("AppContext", "loading settings from AsyncStorage…");
     try {
       const [tm, gk, wa, wb, el, su] = await Promise.all([
         AsyncStorage.getItem("titan_mode").catch(() => null),
@@ -51,8 +55,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setWabaIdState(wb ?? "");
       setElevenLabsKeyState(el ?? "");
       setServerUrlState(su ?? "");
-    } catch { /* silent */ }
-    getTotalRevenue().then(setTotalRevenue).catch(() => {});
+      diagLog("AppContext", `settings loaded ✓ (gemini=${gk ? "set" : "missing"}, wa=${wa ? "set" : "missing"})`);
+    } catch (err) {
+      diagWarn("AppContext", `settings load error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    getTotalRevenue()
+      .then((rev) => {
+        setTotalRevenue(rev);
+        diagLog("AppContext", `revenue loaded ✓ ₹${rev}`);
+      })
+      .catch((err) => {
+        diagWarn("AppContext", `revenue fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
   }
 
   const setTitanMode = async (val: boolean) => {

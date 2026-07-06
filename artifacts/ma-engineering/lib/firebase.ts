@@ -7,6 +7,7 @@ import {
   persistentMultipleTabManager,
 } from "firebase/firestore";
 import { Platform } from "react-native";
+import { diagLog, diagWarn } from "@/lib/diagnosticLog";
 
 // NOTE: auth and storage removed — not used anywhere in the app.
 // getAuth() was causing unnecessary Firebase Auth init on startup
@@ -54,10 +55,13 @@ function initFirebaseOnce(): void {
     }
 
     firebaseReady = true;
+    diagLog("firebase", "initialized ✓ (project: ma-engineering-titan)");
   } catch (err) {
     // Never let a Firebase init failure crash the app at import time.
     // Consumers must check firebaseReady before touching `db`.
     firebaseReady = false;
+    const msg = err instanceof Error ? err.message : String(err);
+    diagWarn("firebase", `init failed — degraded/offline mode: ${msg}`);
     // eslint-disable-next-line no-console
     console.warn("[firebase] init failed — app will run in degraded/offline mode:", err);
   }
@@ -68,7 +72,13 @@ initFirebaseOnce();
 // One retry after a short delay — covers genuine Android cold-start races
 // where a native module isn't ready on the very first JS tick.
 if (!firebaseReady) {
-  setTimeout(initFirebaseOnce, 1500);
+  diagLog("firebase", "retrying init in 1.5s…");
+  setTimeout(() => {
+    initFirebaseOnce();
+    if (!firebaseReady) {
+      diagWarn("firebase", "retry also failed — Firestore unavailable this session");
+    }
+  }, 1500);
 }
 
 // `db` may be undefined if Firebase never initialized successfully. Callers

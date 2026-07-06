@@ -13,12 +13,14 @@
  *  2. An unhandled promise rejection tracker, since a rejected promise with
  *     no .catch() does NOT go through ErrorUtils on its own.
  *
- * Both paths report to Firestore via reportCrash (same as ErrorBoundary)
- * and show a plain-language Alert to the user immediately, so "the app
- * just froze" becomes "here's exactly what broke."
+ * Both paths report to Firestore via reportCrash (same as ErrorBoundary),
+ * push to the on-screen DiagnosticOverlay, and show a plain-language Alert
+ * to the user immediately, so "the app just froze" becomes "here's exactly
+ * what broke."
  */
 import { Alert } from "react-native";
 import { reportCrash } from "@/lib/autoHeal";
+import { diagError } from "@/lib/diagnosticLog";
 
 let installed = false;
 
@@ -45,7 +47,9 @@ export function installGlobalErrorHandlers(): void {
   if (g.ErrorUtils) {
     const defaultHandler = g.ErrorUtils.getGlobalHandler();
     g.ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
-      reportCrash(error, isFatal ? "fatal-js-error" : "js-error").catch(() => {});
+      const ctx = isFatal ? "fatal-js-error" : "js-error";
+      diagError(ctx, error);
+      reportCrash(error, ctx).catch(() => {});
       showCrashAlert(error, isFatal ? "A fatal error occurred" : "An unexpected error occurred");
       defaultHandler(error, isFatal);
     });
@@ -58,6 +62,7 @@ export function installGlobalErrorHandlers(): void {
   if (typeof g2.process?.on === "function") {
     g2.process.on("unhandledRejection", (reason: unknown) => {
       const error = reason instanceof Error ? reason : new Error(String(reason));
+      diagError("unhandled-rejection", error);
       reportCrash(error, "unhandled-promise-rejection").catch(() => {});
       showCrashAlert(error, "A background task failed");
     });

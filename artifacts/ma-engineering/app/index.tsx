@@ -15,6 +15,7 @@ import ReAnimated, {
   FadeInDown,
 } from "react-native-reanimated";
 import GlowOrb from "@/components/GlowOrb";
+import { diagLog, diagStage } from "@/lib/diagnosticLog";
 
 const { width } = Dimensions.get("window");
 const APP_NAME = "MA TITAN";
@@ -38,6 +39,9 @@ export default function SplashScreen() {
   const progress = useSharedValue(0);
 
   useEffect(() => {
+    diagLog("SplashScreen", "splash mounted ✓");
+    diagStage("splash screen mounted");
+
     logoOpacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
     logoRotate.value = withTiming(0, { duration: 900, easing: Easing.out(Easing.exp) });
     logoScale.value = withSpring(1, { damping: 9, stiffness: 90 }, () => {
@@ -84,7 +88,12 @@ export default function SplashScreen() {
 
     progress.value = withDelay(1000, withTiming(1, { duration: 1600, easing: Easing.out(Easing.cubic) }));
 
+    diagLog("SplashScreen", "3400ms navigation timer started");
+    diagStage("splash — waiting 3.4s…");
+
     const timer = setTimeout(() => {
+      diagLog("SplashScreen", "timer fired — calling router.replace('/(tabs)')");
+      diagStage("navigating to tabs…");
       router.replace("/(tabs)");
     }, 3400);
     return () => clearTimeout(timer);
