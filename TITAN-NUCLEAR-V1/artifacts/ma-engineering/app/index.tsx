@@ -15,6 +15,7 @@ import ReAnimated, {
   FadeInDown,
 } from "react-native-reanimated";
 import GlowOrb from "@/components/GlowOrb";
+import { diagLog, diagError } from "@/lib/diagnostics";
 
 const { width } = Dimensions.get("window");
 const APP_NAME = "MA TITAN";
@@ -23,8 +24,6 @@ export default function SplashScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  // Logo: dramatic 3D flip-in (rotateY 100deg -> 0) with perspective +
-  // spring scale pop, then settles into a slow perpetual hover-spin.
   const logoRotate = useSharedValue(100);
   const logoScale = useSharedValue(0.3);
   const logoOpacity = useSharedValue(0);
@@ -32,12 +31,11 @@ export default function SplashScreen() {
   const idleBob = useSharedValue(0);
   const glowPulse = useSharedValue(0);
   const shimmerX = useSharedValue(-1);
-
-  // Fine-grained progress bar fill driven by a shared value for a
-  // buttery-smooth native-thread animation.
   const progress = useSharedValue(0);
 
   useEffect(() => {
+    diagLog("Splash screen mounted");
+
     logoOpacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
     logoRotate.value = withTiming(0, { duration: 900, easing: Easing.out(Easing.exp) });
     logoScale.value = withSpring(1, { damping: 9, stiffness: 90 }, () => {
@@ -68,8 +66,6 @@ export default function SplashScreen() {
       )
     );
 
-    // Shimmer sweep — a soft diagonal light streak crosses the logo
-    // periodically once it's settled, like light reflecting off a 3D surface.
     shimmerX.value = withDelay(
       1200,
       withRepeat(
@@ -84,9 +80,26 @@ export default function SplashScreen() {
 
     progress.value = withDelay(1000, withTiming(1, { duration: 1600, easing: Easing.out(Easing.cubic) }));
 
+    diagLog("Splash timer started (3400ms)");
     const timer = setTimeout(() => {
-      router.replace("/(tabs)");
+      diagLog("Splash timer fired — navigating to (tabs)");
+      try {
+        router.replace("/(tabs)");
+        diagLog("router.replace called OK");
+      } catch (err) {
+        diagError("router.replace to (tabs)", err);
+        // Retry once after 500ms if first attempt failed
+        setTimeout(() => {
+          try {
+            diagLog("Retrying router.replace…");
+            router.replace("/(tabs)");
+          } catch (e2) {
+            diagError("router.replace retry failed", e2);
+          }
+        }, 500);
+      }
     }, 3400);
+
     return () => clearTimeout(timer);
   }, []);
 
@@ -120,24 +133,20 @@ export default function SplashScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Ambient depth — soft drifting neon orbs behind everything */}
       <GlowOrb color="#00B4FF" size={240} style={{ top: -70, left: -70 }} duration={5200} />
       <GlowOrb color="#7B2FFF" size={190} style={{ bottom: -50, right: -60 }} duration={6400} driftX={26} driftY={16} />
       <GlowOrb color="#00FFD1" size={150} style={{ top: "35%", right: -35 }} duration={4600} driftX={14} driftY={30} />
 
       <View style={styles.center}>
-        {/* Logo — real app icon, flips in with 3D depth then hovers */}
         <ReAnimated.View style={[styles.logoRing, logoStyle]}>
           <Image
             source={require("../assets/images/icon.png")}
             style={styles.logoImage}
             resizeMode="cover"
           />
-          {/* Shimmer sweep — diagonal light streak, like a reflection on a 3D surface */}
           <ReAnimated.View style={[styles.shimmerStreak, shimmerStyle]} pointerEvents="none" />
         </ReAnimated.View>
 
-        {/* App name — cascading letter-by-letter reveal */}
         <View style={styles.titleRow}>
           {letters.map((ch, i) => (
             <ReAnimated.Text
@@ -153,7 +162,6 @@ export default function SplashScreen() {
           ))}
         </View>
 
-        {/* Welcome — glowing pulse entrance */}
         <ReAnimated.Text
           entering={FadeIn.duration(700).delay(1250)}
           style={[styles.welcome, welcomeGlowStyle]}
