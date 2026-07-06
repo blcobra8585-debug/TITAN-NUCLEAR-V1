@@ -5,6 +5,7 @@
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import { sendTelegramAlert } from "@/lib/telegramAlert";
 
 const ADMIN_PHONE = "917895643069"; // Suhan Siddiqui
 const WA_API_BASE = "https://graph.facebook.com/v18.0";
@@ -86,6 +87,9 @@ export async function sendWACrashAlert(
     // Never let the alert system crash the app
     console.warn("[WACrashAlert] Failed to send:", err);
   }
+
+  // Telegram bhi bhejta hai — dono channels pe alert jaata hai
+  await sendTelegramAlert(title, details, context).catch(() => {});
 }
 
 /**

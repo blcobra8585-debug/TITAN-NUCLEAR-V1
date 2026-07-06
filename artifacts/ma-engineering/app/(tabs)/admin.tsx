@@ -34,9 +34,11 @@ const AI_KEYS: ApiKeyField[] = [
 ];
 
 const SERVICE_KEYS: ApiKeyField[] = [
-  { label: "WhatsApp Meta Token", storageKey: "wa_token",      color: "#25D366", icon: "💬", placeholder: "EAAx..." },
-  { label: "WhatsApp WABA ID",    storageKey: "waba_id",       color: "#25D366", icon: "#️⃣", placeholder: "1234567890..." },
-  { label: "Replit Server URL",   storageKey: "server_url",    color: "#F26207", icon: "🖥️", placeholder: "https://....repl.co/api" },
+  { label: "WhatsApp Meta Token", storageKey: "wa_token",              color: "#25D366", icon: "💬", placeholder: "EAAx..." },
+  { label: "WhatsApp WABA ID",    storageKey: "waba_id",               color: "#25D366", icon: "#️⃣", placeholder: "1234567890..." },
+  { label: "Telegram Bot Token",  storageKey: "telegram_bot_token",    color: "#229ED9", icon: "✈️", placeholder: "123456789:AAF...", freeHint: "@BotFather se milega — FREE" },
+  { label: "Telegram Chat ID",    storageKey: "telegram_chat_id",      color: "#229ED9", icon: "💬", placeholder: "-100... ya 123456789", freeHint: "@userinfobot ko /start bhejo" },
+  { label: "Replit Server URL",   storageKey: "server_url",            color: "#F26207", icon: "🖥️", placeholder: "https://....repl.co/api" },
 ];
 
 export default function AdminScreen() {
