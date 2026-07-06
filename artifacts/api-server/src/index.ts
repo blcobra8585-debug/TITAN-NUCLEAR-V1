@@ -1,5 +1,26 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { sendTelegramAlert } from "./lib/telegramAlert";
+
+// ── Process-level safety nets — catch anything that escapes Express
+process.on("uncaughtException", (err: Error) => {
+  logger.fatal({ err }, "uncaughtException — server shutting down");
+  sendTelegramAlert(
+    "💀 SERVER CRASH: uncaughtException",
+    err.stack ?? err.message,
+    "process/uncaughtException",
+  ).finally(() => process.exit(1));
+});
+
+process.on("unhandledRejection", (reason: unknown) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  logger.error({ err }, "unhandledRejection");
+  sendTelegramAlert(
+    "⚠️ Server: unhandledRejection",
+    err.stack ?? err.message,
+    "process/unhandledRejection",
+  ).catch(() => {});
+});
 
 const rawPort = process.env["PORT"];
 

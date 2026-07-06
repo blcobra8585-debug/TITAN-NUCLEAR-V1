@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
 import { logger } from "./logger";
+import { sendTelegramAlert } from "./telegramAlert";
 
 let initialized = false;
 
@@ -31,6 +32,11 @@ export function getFirebaseAdmin(): admin.app.App {
     logger.info("Firebase Admin initialized");
   } catch (err) {
     logger.error({ err }, "Firebase Admin init failed");
+    sendTelegramAlert(
+      "🔥 Firebase Admin Init Failed",
+      err instanceof Error ? err.message : String(err),
+      "firebaseAdmin/init",
+    ).catch(() => {});
     // Do NOT call admin.app() below — if init failed there is no default
     // app registered, and admin.app() throws "no Firebase App '[DEFAULT]'
     // has been created", crashing every route that touches Firestore.

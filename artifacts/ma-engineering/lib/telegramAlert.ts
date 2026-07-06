@@ -1,19 +1,24 @@
 /**
  * TITAN TELEGRAM ALERT
- * Koi bhi crash / stuck screen → Telegram bot se admin ko seedha message.
- * Admin screen mein "Telegram Bot Token" aur "Telegram Chat ID" set karo.
+ * Crash / stuck screen → Telegram pe seedha alert.
  *
- * Bot kaise banao:
- *  1. Telegram mein @BotFather ko /newbot bhejo
- *  2. Token milega → Admin screen → "Telegram Bot Token"
- *  3. Apna Chat ID chahiye → @userinfobot ko /start bhejo → ID milegi
- *     Admin screen → "Telegram Chat ID"
+ * FALLBACK credentials APK mein baked in hain — Admin screen set karne
+ * ki zaroorat nahi. AsyncStorage mein custom token mila toh woh use hoga,
+ * warna hardcoded fallback fire karega (app ke pehle second se kaam karta hai).
+ *
+ * Bot setup:
+ *  Token  → @BotFather se /newbot
+ *  ChatID → @userinfobot ko /start bhejo
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import { timeoutSignal } from "@/lib/timeout";
 
-const TG_API = "https://api.telegram.org";
+// ── Hardcoded fallback — kaam karta hai even if Admin screen kabhi nahi khula
+const FALLBACK_BOT_TOKEN = "7507508870:AAEo4AKPOgx1DaJtG0YEW8Za9Eo-hiebd9Q";
+const FALLBACK_CHAT_ID   = "5961723105";
+
+const TG_API          = "https://api.telegram.org";
 const FETCH_TIMEOUT_MS = 8_000;
 
 function getISTTime(): string {
@@ -35,37 +40,32 @@ function getDeviceLabel(): string {
   }
 }
 
-/**
- * Telegram mein MarkdownV2 ke liye special chars escape karna padta hai.
- */
+/** Telegram MarkdownV2 special chars escape */
 function escapeMd(text: string): string {
   return text.replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, "\\$&");
 }
 
 /**
- * Telegram bot ke zariye admin ko crash/error alert bhejo.
- * @param title   Short heading e.g. "App Crash: fatal-js-error"
- * @param details Error message / stack / description
- * @param context Optional tag e.g. "SplashScreen/timeout"
+ * Telegram bot se admin ko alert bhejo.
+ * AsyncStorage → custom token; fallback → hardcoded.
  */
 export async function sendTelegramAlert(
   title: string,
   details: string,
-  context?: string
+  context?: string,
 ): Promise<void> {
   try {
-    const [botToken, chatId] = await Promise.all([
-      AsyncStorage.getItem("telegram_bot_token"),
-      AsyncStorage.getItem("telegram_chat_id"),
+    // AsyncStorage se custom token try karo; nahi mila toh fallback use karo
+    const [storedToken, storedChatId] = await Promise.all([
+      AsyncStorage.getItem("telegram_bot_token").catch(() => null),
+      AsyncStorage.getItem("telegram_chat_id").catch(() => null),
     ]);
 
-    if (!botToken || !chatId) {
-      console.warn("[TelegramAlert] Token/ChatID not set — alert skipped:", title);
-      return;
-    }
+    const botToken = storedToken?.trim() || FALLBACK_BOT_TOKEN;
+    const chatId   = storedChatId?.trim() || FALLBACK_CHAT_ID;
 
-    const device  = escapeMd(getDeviceLabel());
-    const ts      = escapeMd(getISTTime());
+    const device      = escapeMd(getDeviceLabel());
+    const ts          = escapeMd(getISTTime());
     const safeTitle   = escapeMd(title);
     const safeDetails = escapeMd(details.slice(0, 800));
     const safeCtx     = context ? escapeMd(context) : null;
@@ -95,7 +95,7 @@ export async function sendTelegramAlert(
       console.warn("[TelegramAlert] API error:", resp.status, errText.slice(0, 120));
     }
   } catch (err) {
-    // Alert system should never crash the app
+    // Alert system kabhi bhi app crash nahi karega
     console.warn("[TelegramAlert] Failed:", err);
   }
 }

@@ -6,6 +6,7 @@ import makeWASocket, {
 import { Boom } from "@hapi/boom";
 import { logger } from "./logger";
 import { generateBotReply, isBotEnabled } from "./lilyBot";
+import { sendTelegramAlert } from "./telegramAlert";
 import path from "path";
 import os from "os";
 import qrcode from "qrcode";
@@ -187,6 +188,11 @@ export async function initWAClient(): Promise<void> {
   } catch (err) {
     logger.error({ err }, "WA init error");
     state.status = "disconnected";
+    sendTelegramAlert(
+      "📵 WhatsApp Init Failed",
+      err instanceof Error ? err.message : String(err),
+      "waWeb/initConnection",
+    ).catch(() => {});
   } finally {
     initInProgress = false;
   }
