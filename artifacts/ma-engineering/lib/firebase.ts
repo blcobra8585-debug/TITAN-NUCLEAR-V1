@@ -79,16 +79,19 @@ function initFirebaseOnce(): void {
   }
 }
 
-initFirebaseOnce();
-
-// One retry after a short delay — covers genuine Android cold-start races
-// where a native module isn't ready on the very first JS tick.
-if (!firebaseReady) {
-  diagLog("firebase", "retrying init in 1.5s…");
-  setTimeout(() => {
-    initFirebaseOnce();
-    if (!firebaseReady) {
-      diagWarn("firebase", "retry also failed — Firestore unavailable this session");
-    }
-  }, 1500);
-}
+// Delay init by 150 ms — gives Hermes + TurboModules (New Architecture) time
+// to finish registering native modules before Firebase JS SDK touches them.
+// Calling initFirebaseOnce() synchronously at module load used to cause a hang
+// on some Android cold starts with newArchEnabled: true.
+setTimeout(() => {
+  initFirebaseOnce();
+  if (!firebaseReady) {
+    diagLog("firebase", "retrying init in 1.5s…");
+    setTimeout(() => {
+      initFirebaseOnce();
+      if (!firebaseReady) {
+        diagWarn("firebase", "retry also failed — Firestore unavailable this session");
+      }
+    }, 1500);
+  }
+}, 150);

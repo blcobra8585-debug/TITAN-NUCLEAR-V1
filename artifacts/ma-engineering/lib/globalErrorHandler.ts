@@ -1,28 +1,17 @@
 /**
  * TITAN GLOBAL ERROR HANDLER
  *
- * ErrorBoundary (components/ErrorBoundary.tsx) only catches errors thrown
- * during React render. Anything thrown outside render — inside a
- * setTimeout/setInterval callback, an event handler, or an unhandled
- * promise rejection — used to crash or silently freeze the app with zero
- * visible explanation to the user.
+ * ErrorBoundary only catches React render errors. This file catches:
+ *  1. Uncaught JS exceptions (ErrorUtils global handler)
+ *  2. Unhandled promise rejections
  *
- * This installs two extra safety nets:
- *  1. A global JS error handler (ErrorUtils) that catches uncaught
- *     exceptions anywhere in the JS thread.
- *  2. An unhandled promise rejection tracker, since a rejected promise with
- *     no .catch() does NOT go through ErrorUtils on its own.
- *
- * Both paths report to Firestore via reportCrash (same as ErrorBoundary),
- * push to the on-screen DiagnosticOverlay, and show a plain-language Alert
- * to the user immediately, so "the app just froze" becomes "here's exactly
- * what broke."
+ * Uses DYNAMIC import for reportCrash so a crash in autoHeal / firebase
+ * import chain does NOT prevent this file from loading. Previously a static
+ * import of autoHeal → firebase → firebase/firestore could crash the module
+ * before installGlobalErrorHandlers() ever ran.
  */
 import { Alert } from "react-native";
-import { reportCrash } from "@/lib/autoHeal";
 import { diagError } from "@/lib/diagnosticLog";
-// NOTE: do NOT import sendWACrashAlert here — reportCrash already calls it
-// internally. Calling it here too causes duplicate WA+Telegram alerts.
 
 let installed = false;
 
@@ -33,6 +22,20 @@ function showCrashAlert(error: Error, context: string): void {
     [{ text: "OK" }],
     { cancelable: true },
   );
+}
+
+/** Dynamic — so import chain crashes don't propagate back to _layout.tsx */
+function reportCrashSafe(error: Error, context: string): void {
+  import("@/lib/autoHeal")
+    .then(({ reportCrash }) => reportCrash(error, context))
+    .catch(() => {
+      // Last resort: at least try a raw Telegram ping
+      import("@/lib/telegramAlert")
+        .then(({ sendTelegramAlert }) =>
+          sendTelegramAlert(`Crash (${context})`, error.message, context),
+        )
+        .catch(() => {});
+    });
 }
 
 export function installGlobalErrorHandlers(): void {
@@ -51,23 +54,20 @@ export function installGlobalErrorHandlers(): void {
     g.ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
       const ctx = isFatal ? "fatal-js-error" : "js-error";
       diagError(ctx, error);
-      // reportCrash → Firebase + WA + Telegram (single path, no duplicates)
-      reportCrash(error, ctx).catch(() => {});
-      showCrashAlert(error, isFatal ? "A fatal error occurred" : "An unexpected error occurred");
+      reportCrashSafe(error, ctx);
+      showCrashAlert(error, isFatal ? "Fatal error occurred" : "An unexpected error occurred");
       defaultHandler(error, isFatal);
     });
   }
 
   const g2 = global as unknown as {
-    HermesInternal?: unknown;
     process?: { on?: (event: string, listener: (...args: any[]) => void) => void };
   };
   if (typeof g2.process?.on === "function") {
     g2.process.on("unhandledRejection", (reason: unknown) => {
       const error = reason instanceof Error ? reason : new Error(String(reason));
       diagError("unhandled-rejection", error);
-      // reportCrash → Firebase + WA + Telegram (single path, no duplicates)
-      reportCrash(error, "unhandled-promise-rejection").catch(() => {});
+      reportCrashSafe(error, "unhandled-promise-rejection");
       showCrashAlert(error, "A background task failed");
     });
   }

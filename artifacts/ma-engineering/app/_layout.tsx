@@ -11,19 +11,31 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import DiagnosticOverlay from "@/components/DiagnosticOverlay";
 import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { autoCheckUpdate } from "@/lib/autoUpdate";
-import { startLeadHunting } from "@/lib/autoLeadBot";
-import { startRecruitmentBot } from "@/lib/recruitmentBot";
-import { healStorage } from "@/lib/autoHeal";
-import { installGlobalErrorHandlers } from "@/lib/globalErrorHandler";
 import { diagLog, diagStage, diagWarn } from "@/lib/diagnosticLog";
+// NOTE: autoUpdate / autoLeadBot / recruitmentBot / autoHeal are NOT statically
+// imported here. A crash in any of those (or their import chains) used to prevent
+// _layout.tsx from loading entirely, keeping the splash screen up forever.
+// They are now loaded via dynamic import() inside AppInit → safeRun.
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
-// Catch crashes that happen outside React render (event handlers, timers,
-// unhandled promise rejections) — without this, those errors used to just
-// freeze/crash the app with zero explanation shown to the user.
-installGlobalErrorHandlers();
+// ── Module-level splash failsafe ──────────────────────────────────────────────
+// If React never mounts (an import somewhere crashed before this file finished
+// evaluating, or the JS thread hung), this still hides the native splash after
+// 5 s so the user sees something instead of being stuck on the launch logo forever.
+setTimeout(() => {
+  SplashScreen.hideAsync().catch(() => {});
+}, 5000);
+
+// Global error handlers — wrapped so a failure here can't crash the module.
+try {
+  // Dynamic import so a crash in globalErrorHandler's own deps doesn't block load
+  import("@/lib/globalErrorHandler")
+    .then(({ installGlobalErrorHandlers }) => installGlobalErrorHandlers())
+    .catch((e) => console.warn("[layout] globalErrorHandler load failed:", e));
+} catch (e) {
+  console.warn("[layout] globalErrorHandler import threw:", e);
+}
 
 diagStage("fonts loading…");
 
@@ -31,30 +43,46 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 2, staleTime: 30000 } },
 });
 
+/** Safely run a background service — errors go to Telegram + Firestore. */
 function safeRun(fn: () => Promise<any>, name: string): void {
   Promise.resolve()
     .then(fn)
     .catch((err) => {
-      // eslint-disable-next-line no-console
       console.warn(`[safeRun] ${name} failed:`, err);
       diagWarn(name, err instanceof Error ? err.message : String(err));
       import("@/lib/autoHeal")
         .then(({ reportCrash }) =>
-          reportCrash(err instanceof Error ? err : new Error(String(err)), name)
+          reportCrash(err instanceof Error ? err : new Error(String(err)), name),
         )
-        .catch((importErr) => {
-          diagWarn("safeRun/reportCrash", importErr instanceof Error ? importErr.message : String(importErr));
-        });
+        .catch(() => {});
     });
 }
 
+/** Background services — all via dynamic import so any crash is isolated. */
 function AppInit() {
   useEffect(() => {
     diagLog("AppInit", "background services starting");
-    safeRun(healStorage, "healStorage");
-    const t1 = setTimeout(() => safeRun(autoCheckUpdate, "autoUpdate"), 8000);
-    const t2 = setTimeout(() => safeRun(startLeadHunting, "leadBot"), 5000);
-    const t3 = setTimeout(() => safeRun(startRecruitmentBot, "recruitBot"), 12000);
+
+    // healStorage first — cleans up corrupt AsyncStorage entries
+    safeRun(
+      () => import("@/lib/autoHeal").then((m) => m.healStorage()),
+      "healStorage",
+    );
+
+    // Delayed services — give the app time to render first
+    const t1 = setTimeout(
+      () => safeRun(() => import("@/lib/autoUpdate").then((m) => m.autoCheckUpdate()), "autoUpdate"),
+      8000,
+    );
+    const t2 = setTimeout(
+      () => safeRun(() => import("@/lib/autoLeadBot").then((m) => m.startLeadHunting()), "leadBot"),
+      5000,
+    );
+    const t3 = setTimeout(
+      () => safeRun(() => import("@/lib/recruitmentBot").then((m) => m.startRecruitmentBot()), "recruitBot"),
+      12000,
+    );
+
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
@@ -72,8 +100,7 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
-  // Fix: on some Android release builds, useFonts can hang forever without
-  // ever resolving — force a fallback after 4s so the app always starts.
+  // Fonts can hang forever on some Android release builds — force fallback at 4 s.
   const [fontsTimedOut, setFontsTimedOut] = React.useState(false);
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -83,7 +110,7 @@ export default function RootLayout() {
     return () => clearTimeout(timer);
   }, []);
 
-  const readyToRender = fontsLoaded || fontError || fontsTimedOut;
+  const readyToRender = fontsLoaded || !!fontError || fontsTimedOut;
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -118,7 +145,7 @@ export default function RootLayout() {
                   <Stack.Screen name="index" />
                   <Stack.Screen name="(tabs)" />
                 </Stack>
-                {/* Diagnostic overlay — always on top, gated by __DEV__ or debug_overlay flag */}
+                {/* Diagnostic overlay — always on top */}
                 <DiagnosticOverlay />
               </AppProvider>
             </ThemeProvider>
