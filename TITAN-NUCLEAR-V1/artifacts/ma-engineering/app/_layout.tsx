@@ -4,16 +4,18 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import DiagnosticOverlay from "@/components/DiagnosticOverlay";
 import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { autoCheckUpdate } from "@/lib/autoUpdate";
 import { startLeadHunting } from "@/lib/autoLeadBot";
 import { startRecruitmentBot } from "@/lib/recruitmentBot";
 import { healStorage } from "@/lib/autoHeal";
+import { diagLog, diagWarn, diagError } from "@/lib/diagnostics";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -22,15 +24,10 @@ const queryClient = new QueryClient({
 });
 
 function safeRun(fn: () => Promise<any>, name: string): void {
-  // Fix #6: stay non-fatal, but log failures instead of swallowing them
-  // silently — otherwise a real problem (bad IndiaMART keys, Firestore
-  // permission errors, etc.) just looks like "nothing happens" with zero
-  // way to diagnose it.
   Promise.resolve()
     .then(fn)
     .catch((err) => {
-      // eslint-disable-next-line no-console
-      console.warn(`[safeRun] ${name} failed:`, err);
+      diagError(name, err);
       import("@/lib/autoHeal")
         .then(({ reportCrash }) => reportCrash(err instanceof Error ? err : new Error(String(err)), name))
         .catch(() => {});
@@ -39,6 +36,7 @@ function safeRun(fn: () => Promise<any>, name: string): void {
 
 function AppInit() {
   useEffect(() => {
+    diagLog("AppInit mounted — running background services");
     safeRun(healStorage, "healStorage");
     const t1 = setTimeout(() => safeRun(autoCheckUpdate, "autoUpdate"), 8000);
     const t2 = setTimeout(() => safeRun(startLeadHunting, "leadBot"), 5000);
@@ -60,13 +58,37 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
+  // Font-loading fallback: if fonts take > 4 s (slow device / network),
+  // force-proceed so the app never hangs waiting on them forever.
+  const fontsReady = useRef(false);
+  const [fontsForcedReady, setFontsForcedReady] = React.useState(false);
+
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    diagLog("RootLayout mounted — loading fonts");
+    const fallback = setTimeout(() => {
+      if (!fontsReady.current) {
+        diagWarn("Fonts timed-out after 4s — force-proceeding without them");
+        setFontsForcedReady(true);
+        SplashScreen.hideAsync().catch(() => {});
+      }
+    }, 4000);
+    return () => clearTimeout(fallback);
+  }, []);
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      fontsReady.current = true;
+      diagLog("Fonts loaded OK");
+      SplashScreen.hideAsync().catch(() => {});
+    }
+    if (fontError) {
+      fontsReady.current = true;
+      diagError("Fonts failed to load", fontError);
       SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) return null;
+  if (!fontsLoaded && !fontError && !fontsForcedReady) return null;
 
   return (
     <SafeAreaProvider>
@@ -80,6 +102,7 @@ export default function RootLayout() {
                   <Stack.Screen name="index" />
                   <Stack.Screen name="(tabs)" />
                 </Stack>
+                <DiagnosticOverlay />
               </AppProvider>
             </ThemeProvider>
           </GestureHandlerRootView>
