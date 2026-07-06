@@ -11,8 +11,10 @@
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import { timeoutSignal } from "@/lib/timeout";
 
 const TG_API = "https://api.telegram.org";
+const FETCH_TIMEOUT_MS = 8_000;
 
 function getISTTime(): string {
   try {
@@ -79,6 +81,7 @@ export async function sendTelegramAlert(
 
     const resp = await fetch(`${TG_API}/bot${botToken}/sendMessage`, {
       method: "POST",
+      signal: timeoutSignal(FETCH_TIMEOUT_MS),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: chatId,
