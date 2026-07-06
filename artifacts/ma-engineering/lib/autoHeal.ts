@@ -10,6 +10,7 @@ import Constants from "expo-constants";
 import { db } from "./firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { timeoutSignal } from "@/lib/timeout";
+import { sendWACrashAlert } from "@/lib/waCrashAlert";
 
 export interface ErrorReport {
   message: string;
@@ -191,6 +192,13 @@ export async function reportCrash(error: Error, context: string): Promise<void> 
       ts: Date.now(),
     });
     await AsyncStorage.setItem("crash_logs", JSON.stringify(logs.slice(0, 10)));
+
+    // WhatsApp alert — seedha admin ko bhejta hai
+    await sendWACrashAlert(
+      `App Crash: ${context}`,
+      error.message + (error.stack ? `\n\nStack:\n${error.stack.slice(0, 400)}` : ""),
+      context
+    ).catch(() => {});
   } catch {}
 }
 

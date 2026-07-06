@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { Dimensions, Image, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ReAnimated, {
@@ -15,7 +15,8 @@ import ReAnimated, {
   FadeInDown,
 } from "react-native-reanimated";
 import GlowOrb from "@/components/GlowOrb";
-import { diagLog, diagStage } from "@/lib/diagnosticLog";
+import { diagLog, diagStage, diagWarn } from "@/lib/diagnosticLog";
+import { sendSplashStuckAlert } from "@/lib/waCrashAlert";
 
 const { width } = Dimensions.get("window");
 const APP_NAME = "MA TITAN";
@@ -23,6 +24,8 @@ const APP_NAME = "MA TITAN";
 export default function SplashScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Track whether navigation succeeded — used by stuck detector
+  const navigatedRef = useRef(false);
 
   // Logo: dramatic 3D flip-in (rotateY 100deg -> 0) with perspective +
   // spring scale pop, then settles into a slow perpetual hover-spin.
@@ -91,12 +94,34 @@ export default function SplashScreen() {
     diagLog("SplashScreen", "3400ms navigation timer started");
     diagStage("splash — waiting 3.4s…");
 
+    const SPLASH_START = Date.now();
+
     const timer = setTimeout(() => {
       diagLog("SplashScreen", "timer fired — calling router.replace('/(tabs)')");
       diagStage("navigating to tabs…");
-      router.replace("/(tabs)");
+      try {
+        navigatedRef.current = true;
+        router.replace("/(tabs)");
+      } catch (navErr: any) {
+        navigatedRef.current = false;
+        diagWarn("SplashScreen/navigate", navErr?.message ?? String(navErr));
+        sendSplashStuckAlert(Date.now() - SPLASH_START).catch(() => {});
+      }
     }, 3400);
-    return () => clearTimeout(timer);
+
+    // Stuck detector: if tabs haven't loaded after 10 seconds, send WA alert
+    const stuckTimer = setTimeout(async () => {
+      if (!navigatedRef.current) {
+        const stuckMs = Date.now() - SPLASH_START;
+        diagWarn("SplashScreen", `STUCK — ${stuckMs}ms pe bhi tabs nahi khule`);
+        await sendSplashStuckAlert(stuckMs).catch(() => {});
+      }
+    }, 10000);
+
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(stuckTimer);
+    };
   }, []);
 
   const logoStyle = useAnimatedStyle(() => ({
