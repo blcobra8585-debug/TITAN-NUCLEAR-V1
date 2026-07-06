@@ -60,13 +60,27 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
+  // Fix: on some Android release builds, useFonts can hang forever without
+  // ever resolving fontsLoaded=true or fontError — if that happens the app
+  // used to stay stuck on the splash screen indefinitely (RootLayout kept
+  // returning null and SplashScreen.hideAsync() was never called). Force a
+  // fallback after 4s so the app always starts, using system fonts if the
+  // custom fonts never finished loading.
+  const [fontsTimedOut, setFontsTimedOut] = React.useState(false);
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    const timer = setTimeout(() => setFontsTimedOut(true), 4000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const readyToRender = fontsLoaded || fontError || fontsTimedOut;
+
+  useEffect(() => {
+    if (readyToRender) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [fontsLoaded, fontError]);
+  }, [readyToRender]);
 
-  if (!fontsLoaded && !fontError) return null;
+  if (!readyToRender) return null;
 
   return (
     <SafeAreaProvider>
