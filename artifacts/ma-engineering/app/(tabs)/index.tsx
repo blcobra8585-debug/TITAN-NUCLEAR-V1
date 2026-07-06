@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { diagBooted, diagLog, diagWarn } from "@/lib/diagnosticLog";
 import {
   ActivityIndicator,
   Platform,
@@ -66,7 +67,18 @@ export default function DashboardScreen() {
     setLoading(false);
   }
 
-  useEffect(() => { loadAll(); }, []);
+  // diagBooted: marks the overlay strip "● Ready" — called here (Dashboard's
+  // first render) rather than in TabLayout, so it only fires after a tab
+  // screen has actually mounted, not just the navigator shell.
+  const bootedRef = useRef(false);
+  useEffect(() => {
+    if (!bootedRef.current) {
+      bootedRef.current = true;
+      diagLog("Dashboard", "first render ✓ — app fully booted");
+      diagBooted();
+    }
+    loadAll();
+  }, []);
 
   async function onRefresh() {
     setRefreshing(true);

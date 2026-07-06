@@ -70,7 +70,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   const setTitanMode = async (val: boolean) => {
-    await AsyncStorage.setItem("titan_mode", val ? "true" : "false").catch(() => {});
+    await AsyncStorage.setItem("titan_mode", val ? "true" : "false").catch((err) => {
+      diagWarn("AppContext/setTitanMode", err instanceof Error ? err.message : String(err));
+    });
     setTitanModeState(val);
   };
   const refreshRevenue = async () => {
@@ -78,23 +80,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTotalRevenue(rev);
   };
   const setGeminiKey = async (key: string) => {
-    await setSecureItem("gemini_api_key", key).catch(() => {});
+    await setSecureItem("gemini_api_key", key).catch((err) => {
+      diagWarn("AppContext/setGeminiKey", err instanceof Error ? err.message : String(err));
+    });
     setGeminiKeyState(key);
   };
   const setWaToken = async (token: string) => {
-    await setSecureItem("wa_token", token).catch(() => {});
+    await setSecureItem("wa_token", token).catch((err) => {
+      diagWarn("AppContext/setWaToken", err instanceof Error ? err.message : String(err));
+    });
     setWaTokenState(token);
   };
   const setWabaId = async (id: string) => {
-    await setSecureItem("waba_id", id).catch(() => {});
+    await setSecureItem("waba_id", id).catch((err) => {
+      diagWarn("AppContext/setWabaId", err instanceof Error ? err.message : String(err));
+    });
     setWabaIdState(id);
   };
   const setElevenLabsKey = async (key: string) => {
-    await setSecureItem("elevenlabs_api_key", key).catch(() => {});
+    await setSecureItem("elevenlabs_api_key", key).catch((err) => {
+      diagWarn("AppContext/setElevenLabsKey", err instanceof Error ? err.message : String(err));
+    });
     setElevenLabsKeyState(key);
   };
   const setServerUrl = async (url: string) => {
-    await AsyncStorage.setItem("server_url", url).catch(() => {});
+    await AsyncStorage.setItem("server_url", url).catch((err) => {
+      diagWarn("AppContext/setServerUrl", err instanceof Error ? err.message : String(err));
+    });
     setServerUrlState(url);
   };
 

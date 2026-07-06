@@ -32,34 +32,46 @@ const firebaseConfig = {
 // unavailable" instead of crashing the app.
 export let firebaseReady = false;
 
-let app: ReturnType<typeof initializeApp> | undefined;
-let firestoreDb: ReturnType<typeof getFirestore> | undefined;
+let _app: ReturnType<typeof initializeApp> | undefined;
+
+// Fix: export let so ES module live binding is updated after successful retry.
+// Consumers that import `db` directly will see the updated reference because
+// ES named imports are live bindings — assigning here is reflected everywhere.
+export let db: ReturnType<typeof getFirestore> | undefined = undefined;
+
+// Keep default export in sync (used by some callers as `import app from './firebase'`)
+export default undefined as ReturnType<typeof initializeApp> | undefined;
 
 function initFirebaseOnce(): void {
   try {
-    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    _app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
     // Offline Mode: quotes/leads read+write locally even with no internet, then
     // auto-sync to the cloud the moment connectivity returns. Web uses a
     // multi-tab-safe persistent cache; native falls back to Firestore's default
     // (already offline-capable) memory cache to avoid IndexedDB issues on RN.
+    let firestoreDb: ReturnType<typeof getFirestore>;
     try {
       firestoreDb =
         Platform.OS === "web"
-          ? initializeFirestore(app, {
+          ? initializeFirestore(_app, {
               localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
             })
-          : initializeFirestore(app, { localCache: memoryLocalCache() });
+          : initializeFirestore(_app, { localCache: memoryLocalCache() });
     } catch {
-      firestoreDb = getFirestore(app);
+      firestoreDb = getFirestore(_app);
     }
 
+    // Assign live binding — callers who already imported `db` will see this value
+    // because ES named exports are live references, not copies.
+    db = firestoreDb;
     firebaseReady = true;
     diagLog("firebase", "initialized ✓ (project: ma-engineering-titan)");
   } catch (err) {
     // Never let a Firebase init failure crash the app at import time.
     // Consumers must check firebaseReady before touching `db`.
     firebaseReady = false;
+    db = undefined;
     const msg = err instanceof Error ? err.message : String(err);
     diagWarn("firebase", `init failed — degraded/offline mode: ${msg}`);
     // eslint-disable-next-line no-console
@@ -80,9 +92,3 @@ if (!firebaseReady) {
     }
   }, 1500);
 }
-
-// `db` may be undefined if Firebase never initialized successfully. Callers
-// MUST check `firebaseReady` first (see firebaseService.ts) rather than
-// assuming this is always usable.
-export const db = firestoreDb as ReturnType<typeof getFirestore>;
-export default app;

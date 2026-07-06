@@ -32,10 +32,6 @@ const queryClient = new QueryClient({
 });
 
 function safeRun(fn: () => Promise<any>, name: string): void {
-  // Fix #6: stay non-fatal, but log failures instead of swallowing them
-  // silently — otherwise a real problem (bad IndiaMART keys, Firestore
-  // permission errors, etc.) just looks like "nothing happens" with zero
-  // way to diagnose it.
   Promise.resolve()
     .then(fn)
     .catch((err) => {
@@ -43,8 +39,12 @@ function safeRun(fn: () => Promise<any>, name: string): void {
       console.warn(`[safeRun] ${name} failed:`, err);
       diagWarn(name, err instanceof Error ? err.message : String(err));
       import("@/lib/autoHeal")
-        .then(({ reportCrash }) => reportCrash(err instanceof Error ? err : new Error(String(err)), name))
-        .catch(() => {});
+        .then(({ reportCrash }) =>
+          reportCrash(err instanceof Error ? err : new Error(String(err)), name)
+        )
+        .catch((importErr) => {
+          diagWarn("safeRun/reportCrash", importErr instanceof Error ? importErr.message : String(importErr));
+        });
     });
 }
 
@@ -73,11 +73,7 @@ export default function RootLayout() {
   });
 
   // Fix: on some Android release builds, useFonts can hang forever without
-  // ever resolving fontsLoaded=true or fontError — if that happens the app
-  // used to stay stuck on the splash screen indefinitely (RootLayout kept
-  // returning null and SplashScreen.hideAsync() was never called). Force a
-  // fallback after 4s so the app always starts, using system fonts if the
-  // custom fonts never finished loading.
+  // ever resolving — force a fallback after 4s so the app always starts.
   const [fontsTimedOut, setFontsTimedOut] = React.useState(false);
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -102,7 +98,9 @@ export default function RootLayout() {
   useEffect(() => {
     if (readyToRender) {
       diagLog("RootLayout", "hiding native splash, mounting Stack");
-      SplashScreen.hideAsync().catch(() => {});
+      SplashScreen.hideAsync().catch((err) => {
+        diagWarn("SplashScreen.hideAsync", err instanceof Error ? err.message : String(err));
+      });
     }
   }, [readyToRender]);
 

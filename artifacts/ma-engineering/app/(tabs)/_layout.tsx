@@ -3,15 +3,17 @@ import React, { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import Icon3D from "@/components/Icon3D";
-import { diagBooted, diagLog } from "@/lib/diagnosticLog";
+import { diagLog } from "@/lib/diagnosticLog";
+
+// Note: diagBooted() is called from (tabs)/index.tsx (Dashboard) after its
+// first successful render — that's the real "app is fully usable" milestone.
+// Here we only log that the navigator mounted (an earlier, not-yet-usable stage).
 
 export default function TabLayout() {
   const colors = useColors();
 
   useEffect(() => {
-    diagLog("TabLayout", "(tabs) layout mounted ✓");
-    // Mark app as fully booted — overlay strip switches to "● Ready"
-    diagBooted();
+    diagLog("TabLayout", "(tabs) navigator mounted ✓");
   }, []);
 
   return (
