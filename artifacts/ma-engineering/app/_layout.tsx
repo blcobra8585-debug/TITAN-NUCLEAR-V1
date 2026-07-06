@@ -14,8 +14,14 @@ import { autoCheckUpdate } from "@/lib/autoUpdate";
 import { startLeadHunting } from "@/lib/autoLeadBot";
 import { startRecruitmentBot } from "@/lib/recruitmentBot";
 import { healStorage } from "@/lib/autoHeal";
+import { installGlobalErrorHandlers } from "@/lib/globalErrorHandler";
 
 SplashScreen.preventAutoHideAsync();
+
+// Catch crashes that happen outside React render (event handlers, timers,
+// unhandled promise rejections) — without this, those errors used to just
+// freeze/crash the app with zero explanation shown to the user.
+installGlobalErrorHandlers();
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 2, staleTime: 30000 } },
