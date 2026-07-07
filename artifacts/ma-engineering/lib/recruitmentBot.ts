@@ -94,7 +94,11 @@ export async function generateJobPost(roleData: JobRole, location: string): Prom
 }
 
 export async function saveJobPostToFirebase(post: JobPost): Promise<string> {
-  if (!db) throw new Error("Firebase not ready");
+  // Graceful no-op during Firebase cold-start window instead of hard throw
+  if (!db) {
+    console.warn("[recruitmentBot] saveJobPostToFirebase skipped — Firebase not ready");
+    return "";
+  }
   const ref = await addDoc(collection(db, "job_postings"), {
     ...post,
     status: "active",

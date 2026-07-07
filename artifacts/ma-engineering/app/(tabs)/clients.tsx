@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { getSecureItem } from "@/lib/security";
 
 interface Client {
   id: string;
@@ -131,8 +132,8 @@ export default function ClientsScreen() {
   }
 
   async function waClient(c: Client) {
-    const waToken = await AsyncStorage.getItem("wa_token") ?? "";
-    const wabaId = await AsyncStorage.getItem("waba_id") ?? "";
+    const waToken = await getSecureItem("wa_token").catch(() => null) ?? "";
+    const wabaId = await getSecureItem("waba_id").catch(() => null) ?? "";
     const msg = `Namaskar *${c.name}* ji! 🙏\n\nMain Lily hoon, MA Engineering se. Aapke ${c.projectType} project ke baare mein baat karni thi.\n\nKya aap available hain?\n\n*MA Engineering* | 15+ Years Experience`;
     const result = await sendWhatsAppMessage(c.phone, msg);
     if (result.success) {
