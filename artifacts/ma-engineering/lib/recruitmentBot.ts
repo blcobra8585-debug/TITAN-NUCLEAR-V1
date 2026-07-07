@@ -93,6 +93,7 @@ export async function generateJobPost(roleData: JobRole, location: string): Prom
 }
 
 export async function saveJobPostToFirebase(post: JobPost): Promise<string> {
+  if (!db) throw new Error("Firebase not ready");
   const ref = await addDoc(collection(db, "job_postings"), {
     ...post,
     status: "active",
@@ -106,6 +107,7 @@ export async function saveJobPostToFirebase(post: JobPost): Promise<string> {
 
 export async function getJobPostsFromFirebase(): Promise<(JobPost & { id: string })[]> {
   try {
+    if (!db) return [];
     const q = query(collection(db, "job_postings"), orderBy("postedAt", "desc"));
     const snap = await getDocs(q);
     return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as any;

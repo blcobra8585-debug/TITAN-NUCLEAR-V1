@@ -8,9 +8,12 @@
  *   (b) Telegram only        → Telegram fires, WA skipped
  *   (c) Both configured      → both fire in parallel
  *   (d) Neither configured   → silent no-op
+ *
+ * Fix: WA token + WABA ID now read from SecureStore (encrypted, hardware-backed)
+ * instead of plain AsyncStorage — consistent with how AppContext stores them.
  */
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import * as SecureStore from "expo-secure-store";
 import { sendTelegramAlert } from "@/lib/telegramAlert";
 import { timeoutSignal } from "@/lib/timeout";
 
@@ -43,9 +46,10 @@ async function sendViaWhatsApp(
   details: string,
   context?: string,
 ): Promise<void> {
+  // Read from SecureStore (encrypted) — same location AppContext writes to
   const [waToken, wabaId] = await Promise.all([
-    AsyncStorage.getItem("wa_token"),
-    AsyncStorage.getItem("waba_id"),
+    SecureStore.getItemAsync("wa_token").catch(() => null),
+    SecureStore.getItemAsync("waba_id").catch(() => null),
   ]);
 
   if (!waToken || !wabaId) {
