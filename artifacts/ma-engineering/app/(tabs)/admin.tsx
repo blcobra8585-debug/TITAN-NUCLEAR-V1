@@ -14,7 +14,7 @@ import { checkForUpdate } from "@/lib/autoUpdate";
 import { getLastHuntTime } from "@/lib/autoLeadBot";
 import { getLastRecruitmentRun } from "@/lib/recruitmentBot";
 import { runDiagnostics } from "@/lib/autoHeal";
-import { hasPIN, setPIN, removePIN, getSecurityStatus, getSecureItem } from "@/lib/security";
+import { hasPIN, setPIN, removePIN, getSecurityStatus, getSecureItem, setSecureItem } from "@/lib/security";
 import { resetAllAIChats } from "@/lib/multiAI";
 import { timeoutSignal } from "@/lib/timeout";
 import Icon3D from "@/components/Icon3D";
@@ -94,15 +94,29 @@ export default function AdminScreen() {
 
   async function saveAll() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const pairs: [string, string][] = Object.entries(keyValues).map(([k, v]) => [k, v.trim()]);
-    pairs.push(["indiamart_glid", imGlid.trim()], ["indiamart_key", imKey.trim()]);
-    await AsyncStorage.multiSet(pairs);
-    // Sync app context
+
+    // Secure keys — store encrypted via setSecureItem (must match how loadAll reads them)
+    const secureStorageKeys = [...AI_KEYS, ...SERVICE_KEYS].map(k => k.storageKey);
+    await Promise.all(
+      secureStorageKeys.map(async (k) => {
+        const val = keyValues[k];
+        if (val !== undefined) await setSecureItem(k, val.trim()).catch(() => {});
+      })
+    );
+
+    // Non-sensitive keys stay in plain AsyncStorage
+    await AsyncStorage.multiSet([
+      ["indiamart_glid", imGlid.trim()],
+      ["indiamart_key", imKey.trim()],
+    ]).catch(() => {});
+
+    // Sync app context so in-memory values are up to date immediately
     if (keyValues["gemini_api_key"] !== undefined) await setGeminiKey(keyValues["gemini_api_key"].trim());
     if (keyValues["wa_token"] !== undefined) await setWaToken(keyValues["wa_token"].trim());
     if (keyValues["waba_id"] !== undefined) await setWabaId(keyValues["waba_id"].trim());
     if (keyValues["elevenlabs_api_key"] !== undefined) await setElevenLabsKey(keyValues["elevenlabs_api_key"].trim());
     if (keyValues["server_url"] !== undefined) await setServerUrl(keyValues["server_url"].trim());
+
     resetAllAIChats();
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);

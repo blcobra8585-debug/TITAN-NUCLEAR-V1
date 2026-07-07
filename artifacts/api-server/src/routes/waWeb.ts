@@ -26,11 +26,22 @@ router.post("/pairing-code", async (req, res) => {
     res.status(400).json({ success: false, error: "phone number required" });
     return;
   }
-  const result = await requestPairingCode(phone);
+  const cleaned = String(phone).replace(/[^0-9]/g, "");
+  if (cleaned.length < 10) {
+    res.status(400).json({ success: false, error: "Valid phone number with country code chahiye (e.g. 919876543210)" });
+    return;
+  }
+  const result = await requestPairingCode(cleaned);
   if (result.code) {
     res.json({ success: true, code: result.code });
   } else {
-    res.status(500).json({ success: false, error: result.error });
+    // User-fixable errors (wrong phone, not ready) → 400; real server faults → 500
+    const isUserError = result.error && (
+      result.error.includes("Socket") ||
+      result.error.includes("phone") ||
+      result.error.includes("initialize")
+    );
+    res.status(isUserError ? 400 : 500).json({ success: false, error: result.error });
   }
 });
 
