@@ -50,6 +50,7 @@ export default function SplashScreen() {
     logoOpacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
     logoRotate.value = withTiming(0, { duration: 900, easing: Easing.out(Easing.exp) });
     logoScale.value = withSpring(1, { damping: 9, stiffness: 90 }, () => {
+      'worklet';
       idleSpin.value = withRepeat(
         withTiming(360, { duration: 5000, easing: Easing.linear }),
         -1,

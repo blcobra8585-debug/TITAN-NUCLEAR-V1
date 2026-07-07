@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { StyleSheet, ViewStyle } from "react-native";
+import { StyleSheet, View, ViewStyle } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -8,7 +8,6 @@ import Animated, {
   withTiming,
   Easing,
 } from "react-native-reanimated";
-import { BlurView } from "expo-blur";
 
 interface GlowOrbProps {
   color: string;
@@ -20,10 +19,15 @@ interface GlowOrbProps {
 }
 
 /**
- * A soft blurred neon "orb" that gently drifts and pulses.
+ * A soft neon "orb" that gently drifts and pulses.
  * Used as a cheap stand-in for real 3D depth/lighting since the app
  * has no three.js / expo-gl renderer — this fakes ambient depth with
- * layered blur, glow and parallax-style motion instead.
+ * glow and parallax-style motion.
+ *
+ * NOTE: expo-blur BlurView was removed — it crashes on Android 16
+ * (RealmeUI 7.0 / API 36) when rendered inside Animated.View with
+ * overflow:hidden. Replaced with a semi-transparent dark overlay that
+ * preserves the visual softness without the native-layer instability.
  */
 export default function GlowOrb({
   color,
@@ -73,7 +77,10 @@ export default function GlowOrb({
         animatedStyle,
       ]}
     >
-      <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
+      {/* Dark overlay instead of BlurView — BlurView crashes on Android 16
+          (API 36 / RealmeUI 7.0) inside overflow:hidden + Animated.View.
+          This achieves a similar soft diffusion look with zero native risk. */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(6,6,16,0.4)" }]} />
     </Animated.View>
   );
 }
