@@ -61,13 +61,33 @@ jobs:
           grep "newArchEnabled" "$GRADLE_PROPS"
 
           # 2. Inject REACT_NATIVE_WORKLETS_NODE_MODULES_DIR into app/build.gradle
-          WORKLETS_PKG=$(find $(pwd)/node_modules/.pnpm -path "*/react-native-worklets/package.json" -maxdepth 10 2>/dev/null | grep -v "worklets-core" | head -1)
-          if [ -z "$WORKLETS_PKG" ]; then
-            echo "::error::Could not locate react-native-worklets package.json under node_modules/.pnpm — aborting build instead of injecting an empty path"
+          # With node-linker=hoisted, pnpm installs packages flat — check both
+          # the workspace root and the artifact's own node_modules.
+          WORKLETS_ABS=""
+
+          # Check workspace root node_modules first (hoisted location)
+          if [ -f "$(pwd)/node_modules/react-native-worklets/package.json" ]; then
+            WORKLETS_ABS="$(pwd)/node_modules/react-native-worklets"
+            echo "Found react-native-worklets at workspace root: $WORKLETS_ABS"
+          # Check artifact-level node_modules as fallback
+          elif [ -f "$(pwd)/artifacts/ma-engineering/node_modules/react-native-worklets/package.json" ]; then
+            WORKLETS_ABS="$(pwd)/artifacts/ma-engineering/node_modules/react-native-worklets"
+            echo "Found react-native-worklets at artifact level: $WORKLETS_ABS"
+          else
+            # Last resort: search anywhere under node_modules (handles edge cases)
+            WORKLETS_PKG=$(find $(pwd)/node_modules -name "package.json" -path "*/react-native-worklets/package.json" ! -path "*worklets-core*" -maxdepth 6 2>/dev/null | head -1)
+            if [ -n "$WORKLETS_PKG" ]; then
+              WORKLETS_ABS=$(dirname "$WORKLETS_PKG")
+              echo "Found react-native-worklets via search: $WORKLETS_ABS"
+            fi
+          fi
+
+          if [ -z "$WORKLETS_ABS" ]; then
+            echo "::error::Could not locate react-native-worklets — aborting. Check that node-linker=hoisted is in .npmrc and pnpm install succeeded."
+            echo "node_modules listing for debug:"
+            ls $(pwd)/node_modules/ | grep -i worklets || echo "(none found)"
             exit 1
           fi
-          WORKLETS_ABS=$(dirname "$WORKLETS_PKG")
-          echo "Found react-native-worklets at: $WORKLETS_ABS"
 
           APP_GRADLE="artifacts/ma-engineering/android/app/build.gradle"
           sed -i "1s|^|ext {\n    REACT_NATIVE_WORKLETS_NODE_MODULES_DIR = \"$WORKLETS_ABS\"\n}\n|" "$APP_GRADLE"
