@@ -11,6 +11,8 @@ import ReAnimated, {
   withSpring,
   withDelay,
   Easing,
+  FadeIn,
+  FadeInDown,
 } from "react-native-reanimated";
 import GlowOrb from "@/components/GlowOrb";
 import { diagLog, diagStage, diagWarn } from "@/lib/diagnosticLog";
@@ -97,14 +99,38 @@ export default function SplashScreen() {
     const SPLASH_START = Date.now();
 
     const timer = setTimeout(() => {
-      diagLog("SplashScreen", "timer fired — calling router.replace('/(tabs)')");
+      diagLog("SplashScreen", "timer fired — attempting navigation to tabs");
       diagStage("navigating to tabs…");
+
+      // Strategy 1 — standard expo-router replace to the (tabs) group
       try {
         router.replace("/(tabs)");
-      } catch (navErr: any) {
-        diagWarn("SplashScreen/navigate", navErr?.message ?? String(navErr));
-        sendSplashStuckAlert(Date.now() - SPLASH_START).catch(() => {});
+        diagLog("SplashScreen", "router.replace('/(tabs)') fired");
+        return;
+      } catch (e1: any) {
+        diagWarn("SplashScreen/nav-1", e1?.message ?? String(e1));
       }
+
+      // Strategy 2 — push instead of replace
+      try {
+        router.push("/(tabs)");
+        diagLog("SplashScreen", "router.push('/(tabs)') fired");
+        return;
+      } catch (e2: any) {
+        diagWarn("SplashScreen/nav-2", e2?.message ?? String(e2));
+      }
+
+      // Strategy 3 — navigate to first tab screen directly
+      try {
+        (router as any).navigate("/(tabs)/index");
+        diagLog("SplashScreen", "router.navigate('/(tabs)/index') fired");
+        return;
+      } catch (e3: any) {
+        diagWarn("SplashScreen/nav-3", e3?.message ?? String(e3));
+      }
+
+      // All strategies failed — fire the alert
+      sendSplashStuckAlert(Date.now() - SPLASH_START).catch(() => {});
     }, 3400);
 
     // Stuck detector: agar 10 seconds baad bhi ye component mount hai →
