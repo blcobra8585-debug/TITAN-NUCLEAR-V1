@@ -40,6 +40,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Verify pnpm hoisted install layout
+        run: |
+          echo "=== .npmrc contents ==="
+          cat .npmrc
+          echo "=== node_modules layout (top-level, first 30) ==="
+          ls node_modules/ | head -30
+          echo "=== react-native-worklets location check ==="
+          ls node_modules/react-native-worklets/package.json 2>/dev/null && echo "✅ Found at workspace root node_modules" || echo "❌ NOT at workspace root node_modules"
+          echo "=== react-native-reanimated check ==="
+          ls node_modules/react-native-reanimated/package.json 2>/dev/null && echo "✅ Found" || echo "❌ NOT found"
+
       - name: Expo Prebuild (Android)
         working-directory: artifacts/ma-engineering
         run: pnpm exec expo prebuild --platform android --clean --no-install

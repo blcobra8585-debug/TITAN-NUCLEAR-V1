@@ -47,3 +47,9 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Nested repo copy — accidentally committed, must stay excluded
+# Metro's watchFolders points to the workspace root; if this folder exists
+# during a build, Metro traverses it and can resolve the wrong file versions
+# or corrupt the module map. Never re-commit this.
+TITAN-NUCLEAR-V1/

@@ -11,8 +11,6 @@ import ReAnimated, {
   withSpring,
   withDelay,
   Easing,
-  FadeIn,
-  FadeInDown,
 } from "react-native-reanimated";
 import GlowOrb from "@/components/GlowOrb";
 import { diagLog, diagStage, diagWarn } from "@/lib/diagnosticLog";
