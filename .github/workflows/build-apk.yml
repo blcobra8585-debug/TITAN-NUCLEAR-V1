@@ -119,6 +119,20 @@ jobs:
             echo "release signingConfig already uses debug keystore ✅"
           fi
 
+          # 5. Patch expo-router _ctx files: replace process.env.EXPO_ROUTER_APP_ROOT
+          #    with literal 'app'. @expo/metro-config's transform-worker evaluates
+          #    require.context() args statically at Babel transform time, so a runtime
+          #    env var never resolves → SyntaxError "Invalid call".
+          for CTX_FILE in \
+            "$(pwd)/node_modules/expo-router/_ctx.android.js" \
+            "$(pwd)/artifacts/ma-engineering/node_modules/expo-router/_ctx.android.js"; do
+            if [ -f "$CTX_FILE" ]; then
+              sed -i "s|process\.env\.EXPO_ROUTER_APP_ROOT|'app'|g" "$CTX_FILE"
+              echo "✅ Patched $CTX_FILE"
+              head -5 "$CTX_FILE"
+            fi
+          done
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
