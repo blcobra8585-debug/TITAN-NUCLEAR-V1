@@ -59,6 +59,10 @@ function getDeviceInfo(): Pick<ErrorReport, "os" | "osVersion" | "deviceBrand" |
 // ---------------------------------------------------------------------------
 async function reportError(error: ErrorReport): Promise<void> {
   try {
+    // db is undefined for the first 150ms (Firebase init is deferred so
+    // TurboModules have time to register on New Architecture Android).
+    // Skip Firestore silently — crash is still saved to AsyncStorage below.
+    if (!db) return;
     const device = getDeviceInfo();
     await addDoc(collection(db, "error_logs"), {
       ...error,

@@ -1,6 +1,11 @@
 import React, { Component, ComponentType, PropsWithChildren } from "react";
 import { ErrorFallback, ErrorFallbackProps } from "@/components/ErrorFallback";
-import { reportCrash } from "@/lib/autoHeal";
+import { diagError } from "@/lib/diagnosticLog";
+// NOTE: reportCrash is loaded via dynamic import() — NOT statically.
+// ErrorBoundary is imported statically by _layout.tsx. If we statically
+// imported autoHeal here, we'd pull in the full firebase/firestore chain at
+// module load time. A crash there would prevent _layout.tsx from loading
+// at all, which means the native splash screen would stay stuck forever.
 
 export type ErrorBoundaryProps = PropsWithChildren<{
   FallbackComponent?: ComponentType<ErrorFallbackProps>;
@@ -21,8 +26,21 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, info: { componentStack: string }): void {
-    // Auto-report crash to Firebase
-    reportCrash(error, info.componentStack?.slice(0, 200) ?? "unknown").catch(() => {});
+    const context = info.componentStack?.slice(0, 200) ?? "unknown";
+    diagError("ErrorBoundary", error);
+
+    // Dynamic import — keeps autoHeal → firebase chain out of the startup path
+    import("@/lib/autoHeal")
+      .then(({ reportCrash }) => reportCrash(error, context))
+      .catch(() => {
+        // Last resort: try direct Telegram ping if autoHeal itself failed
+        import("@/lib/telegramAlert")
+          .then(({ sendTelegramAlert }) =>
+            sendTelegramAlert(`React Crash: ${context}`, error.message, "ErrorBoundary"),
+          )
+          .catch(() => {});
+      });
+
     if (typeof this.props.onError === "function") {
       this.props.onError(error, info.componentStack);
     }
