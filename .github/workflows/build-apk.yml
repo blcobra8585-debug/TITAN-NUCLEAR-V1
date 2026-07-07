@@ -51,6 +51,12 @@ jobs:
           echo "=== react-native-reanimated check ==="
           ls node_modules/react-native-reanimated/package.json 2>/dev/null && echo "✅ Found" || echo "❌ NOT found"
 
+      - name: Clear Expo cache
+        working-directory: artifacts/ma-engineering
+        run: |
+          rm -rf .expo
+          echo "✅ .expo cache cleared"
+
       - name: Expo Prebuild (Android)
         working-directory: artifacts/ma-engineering
         run: pnpm exec expo prebuild --platform android --clean --no-install
@@ -118,21 +124,6 @@ jobs:
           else
             echo "release signingConfig already uses debug keystore ✅"
           fi
-
-          # 5. Patch expo-router _ctx files: replace process.env.EXPO_ROUTER_APP_ROOT
-          #    with literal 'app'. @expo/metro-config's transform-worker evaluates
-          #    require.context() args statically at Babel transform time, so a runtime
-          #    env var never resolves → SyntaxError "Invalid call".
-          for CTX_FILE in \
-            "$(pwd)/node_modules/expo-router/_ctx.android.js" \
-            "$(pwd)/artifacts/ma-engineering/node_modules/expo-router/_ctx.android.js"; do
-            if [ -f "$CTX_FILE" ]; then
-              sed -i "s|process\.env\.EXPO_ROUTER_APP_ROOT|'app'|g" "$CTX_FILE"
-              sed -i "s|process\.env\.EXPO_ROUTER_IMPORT_MODE|'sync'|g" "$CTX_FILE"
-              echo "✅ Patched $CTX_FILE"
-              head -5 "$CTX_FILE"
-            fi
-          done
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
