@@ -61,31 +61,36 @@ jobs:
 
       - name: Patch android files for pnpm monorepo + New Architecture
         run: |
-          # 1. Enable New Architecture in gradle.properties (required by reanimated 4.x + worklets)
           GRADLE_PROPS="artifacts/ma-engineering/android/gradle.properties"
+
+          # 1. Enable New Architecture (required by reanimated 4.x + worklets)
           if grep -q "newArchEnabled" "$GRADLE_PROPS"; then
             sed -i 's/newArchEnabled=false/newArchEnabled=true/' "$GRADLE_PROPS"
           else
             echo "newArchEnabled=true" >> "$GRADLE_PROPS"
           fi
+
+          # 2. Force JS bundle to be included in RELEASE builds.
+          #    This is the key flag — without it, assembleRelease may skip
+          #    bundling if it thinks we're in a dev environment.
+          if grep -q "bundleInRelease" "$GRADLE_PROPS"; then
+            sed -i 's/bundleInRelease=.*/bundleInRelease=true/' "$GRADLE_PROPS"
+          else
+            echo "bundleInRelease=true" >> "$GRADLE_PROPS"
+          fi
+
           echo "gradle.properties after patch:"
-          grep "newArchEnabled" "$GRADLE_PROPS"
+          grep -E "newArchEnabled|bundleInRelease" "$GRADLE_PROPS"
 
-          # 2. Inject REACT_NATIVE_WORKLETS_NODE_MODULES_DIR into app/build.gradle
-          # With node-linker=hoisted, pnpm installs packages flat — check both
-          # the workspace root and the artifact's own node_modules.
+          # 3. Inject REACT_NATIVE_WORKLETS_NODE_MODULES_DIR into app/build.gradle
           WORKLETS_ABS=""
-
-          # Check workspace root node_modules first (hoisted location)
           if [ -f "$(pwd)/node_modules/react-native-worklets/package.json" ]; then
             WORKLETS_ABS="$(pwd)/node_modules/react-native-worklets"
             echo "Found react-native-worklets at workspace root: $WORKLETS_ABS"
-          # Check artifact-level node_modules as fallback
           elif [ -f "$(pwd)/artifacts/ma-engineering/node_modules/react-native-worklets/package.json" ]; then
             WORKLETS_ABS="$(pwd)/artifacts/ma-engineering/node_modules/react-native-worklets"
             echo "Found react-native-worklets at artifact level: $WORKLETS_ABS"
           else
-            # Last resort: search anywhere under node_modules (handles edge cases)
             WORKLETS_PKG=$(find $(pwd)/node_modules -name "package.json" -path "*/react-native-worklets/package.json" ! -path "*worklets-core*" -maxdepth 6 2>/dev/null | head -1)
             if [ -n "$WORKLETS_PKG" ]; then
               WORKLETS_ABS=$(dirname "$WORKLETS_PKG")
@@ -94,8 +99,7 @@ jobs:
           fi
 
           if [ -z "$WORKLETS_ABS" ]; then
-            echo "::error::Could not locate react-native-worklets — aborting. Check that node-linker=hoisted is in .npmrc and pnpm install succeeded."
-            echo "node_modules listing for debug:"
+            echo "::error::Could not locate react-native-worklets — aborting."
             ls $(pwd)/node_modules/ | grep -i worklets || echo "(none found)"
             exit 1
           fi
@@ -104,6 +108,16 @@ jobs:
           sed -i "1s|^|ext {\n    REACT_NATIVE_WORKLETS_NODE_MODULES_DIR = \"$WORKLETS_ABS\"\n}\n|" "$APP_GRADLE"
           echo "Injected REACT_NATIVE_WORKLETS_NODE_MODULES_DIR:"
           head -5 "$APP_GRADLE"
+
+          # 4. Ensure release buildType uses debug signing config for CI testing.
+          #    Expo's generated build.gradle already does this by default, but
+          #    patch it explicitly in case prebuild generated a different template.
+          if ! grep -q "signingConfig signingConfigs.debug" "$APP_GRADLE"; then
+            sed -i '/buildTypes {/,/}/ s/release {/release {\n            signingConfig signingConfigs.debug/' "$APP_GRADLE"
+            echo "Patched release signingConfig to use debug keystore"
+          else
+            echo "release signingConfig already uses debug keystore ✅"
+          fi
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -116,13 +130,38 @@ jobs:
       - name: Accept Android licenses
         run: yes | sdkmanager --licenses || true
 
+      - name: Ensure Android debug keystore exists
+        run: |
+          # Release builds need to be signed — use the standard debug keystore.
+          # This is safe for internal/testing APKs. For production you'd use
+          # a real keystore stored as a GitHub Secret.
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkeypair \
+              -keystore ~/.android/debug.keystore \
+              -alias androiddebugkey \
+              -keypass android \
+              -storepass android \
+              -dname "CN=Android Debug, O=Android, C=US" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -v 2>/dev/null
+            echo "✅ Debug keystore generated"
+          else
+            echo "✅ Debug keystore already exists"
+          fi
+
       - name: Make gradlew executable
         working-directory: artifacts/ma-engineering/android
         run: chmod +x gradlew
 
-      - name: Build Debug APK
+      - name: Build Release APK
         working-directory: artifacts/ma-engineering/android
-        run: ./gradlew assembleDebug --no-daemon -x lint --stacktrace
+        # assembleRelease — CRITICAL: bundles JS into the APK so it works
+        # without a Metro dev server. assembleDebug does NOT bundle JS and
+        # tries to load from a network server → native splash hangs forever.
+        run: ./gradlew assembleRelease --no-daemon -x lint --stacktrace
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx6g -Dorg.gradle.daemon=false"
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
@@ -163,8 +202,8 @@ jobs:
             ### 📥 Install karne ka tarika:
             1. Neeche `MA-TITAN-v${{ github.run_number }}.apk` download karo
             2. Phone mein **Settings → Security → Unknown Sources ON** karo
-            3. APK file open karo → Install
-            4. Purani app pehle uninstall karo phir install karo
+            3. **Purani app UNINSTALL karo** (overwrite mat karo)
+            4. APK file open karo → Install
 
             ### 🚀 Features:
             - **TITAN AI** — Multi-model AI (Gemini/GPT/Claude/Groq)
