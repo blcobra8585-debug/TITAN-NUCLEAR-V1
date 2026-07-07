@@ -92,3 +92,21 @@ export async function sendWAMsg(
     return { success: false, error: e.message };
   }
 }
+
+export async function requestWAPairingCode(phoneNumber: string): Promise<{ success: boolean; code?: string; error?: string }> {
+  const base = await getServerUrl();
+  if (!base) return { success: false, error: "Server URL not configured in Admin Panel." };
+  try {
+    const res = await fetch(`${base}/api/wa/pairing-code`, {
+      method: "POST",
+      headers: await getServerHeaders(),
+      body: JSON.stringify({ phone: phoneNumber }),
+      signal: timeoutSignal(20000),
+    });
+    const data = await res.json();
+    if (data.success) return { success: true, code: data.code };
+    return { success: false, error: data.error ?? "Failed to get pairing code" };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}

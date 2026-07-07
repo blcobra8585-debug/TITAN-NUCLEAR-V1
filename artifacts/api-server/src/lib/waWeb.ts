@@ -222,3 +222,30 @@ export async function disconnectWA() {
   state.sock = null;
   state.qrDataUrl = null;
 }
+
+export async function requestPairingCode(phoneNumber: string): Promise<{ code: string | null; error?: string }> {
+  const phone = phoneNumber.replace(/[^0-9]/g, "");
+  if (!phone || phone.length < 10) {
+    return { code: null, error: "Valid phone number with country code chahiye (e.g. 919876543210)" };
+  }
+  // Start WA client if not already running
+  if (state.status === "disconnected") {
+    initWAClient().catch(() => {});
+    // Wait for socket to initialize (up to 8s)
+    for (let i = 0; i < 16; i++) {
+      await new Promise(r => setTimeout(r, 500));
+      if (state.sock && (state.status === "connecting" || state.status === "qr")) break;
+    }
+  }
+  if (!state.sock) {
+    return { code: null, error: "WhatsApp socket initialize nahi hua. Dobara try karo." };
+  }
+  try {
+    const code = await (state.sock as any).requestPairingCode(phone);
+    logger.info({ phone }, "Pairing code requested");
+    return { code: String(code) };
+  } catch (err: any) {
+    logger.error({ err: err.message }, "Pairing code request failed");
+    return { code: null, error: err.message ?? "Pairing code fetch failed" };
+  }
+}

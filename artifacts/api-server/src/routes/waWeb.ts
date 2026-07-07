@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { initWAClient, getWAState, sendWAMessage, getMessages, disconnectWA, getBotReplies } from "../lib/waWeb";
+import { initWAClient, getWAState, sendWAMessage, getMessages, disconnectWA, getBotReplies, requestPairingCode } from "../lib/waWeb";
 
 const router = Router();
 
@@ -18,6 +18,20 @@ router.get("/qr", async (req, res) => {
 router.get("/status", (_req, res) => {
   const s = getWAState();
   res.json({ connected: s.status === "connected", status: s.status, qr: s.qrDataUrl });
+});
+
+router.post("/pairing-code", async (req, res) => {
+  const { phone } = req.body;
+  if (!phone) {
+    res.status(400).json({ success: false, error: "phone number required" });
+    return;
+  }
+  const result = await requestPairingCode(phone);
+  if (result.code) {
+    res.json({ success: true, code: result.code });
+  } else {
+    res.status(500).json({ success: false, error: result.error });
+  }
 });
 
 router.post("/send", async (req, res) => {

@@ -14,7 +14,7 @@ import { checkForUpdate } from "@/lib/autoUpdate";
 import { getLastHuntTime } from "@/lib/autoLeadBot";
 import { getLastRecruitmentRun } from "@/lib/recruitmentBot";
 import { runDiagnostics } from "@/lib/autoHeal";
-import { hasPIN, setPIN, removePIN, getSecurityStatus } from "@/lib/security";
+import { hasPIN, setPIN, removePIN, getSecurityStatus, getSecureItem } from "@/lib/security";
 import { resetAllAIChats } from "@/lib/multiAI";
 import { timeoutSignal } from "@/lib/timeout";
 import Icon3D from "@/components/Icon3D";
@@ -69,18 +69,24 @@ export default function AdminScreen() {
 
   async function loadAll() {
     try {
-      const allKeys = [...AI_KEYS, ...SERVICE_KEYS].map(k => k.storageKey);
-      const vals = await AsyncStorage.multiGet([...allKeys, "indiamart_glid", "indiamart_key"]);
+      // Secure keys are stored encrypted via setSecureItem — use getSecureItem to decrypt
+      const secureKeys = [...AI_KEYS, ...SERVICE_KEYS].map(k => k.storageKey);
+      const secureEntries = await Promise.all(
+        secureKeys.map(async (k) => [k, await getSecureItem(k).catch(() => null)] as [string, string | null])
+      );
       const map: Record<string, string> = {};
-      vals.forEach(([k, v]) => { if (v) map[k] = v; });
+      secureEntries.forEach(([k, v]) => { if (v) map[k] = v; });
+      const [glid, imk] = await Promise.all([
+        AsyncStorage.getItem("indiamart_glid").catch(() => null),
+        AsyncStorage.getItem("indiamart_key").catch(() => null),
+      ]);
       setKeyValues(map);
-      setImGlid(map["indiamart_glid"] ?? "");
-      setImKey(map["indiamart_key"] ?? "");
+      setImGlid(glid ?? "");
+      setImKey(imk ?? "");
       getLastHuntTime().then(setLastHunt).catch(() => setLastHunt("Error"));
       getLastRecruitmentRun().then(setLastRecruit).catch(() => setLastRecruit("Error"));
       hasPIN().then(setPinEnabled).catch(() => {});
     } catch (e: any) {
-      // Storage read failure — degrade to empty defaults instead of crashing screen
       setKeyValues({});
       setImGlid(""); setImKey("");
     }

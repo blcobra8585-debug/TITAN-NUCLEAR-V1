@@ -1,5 +1,5 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getSecureItem } from "@/lib/security";
 
 export async function generateQuote(
   clientOrParams: string | { client: string; project: string; tons: string | number },
@@ -10,7 +10,7 @@ export async function generateQuote(
   const project = typeof clientOrParams === "string" ? (projectArg ?? "") : clientOrParams.project;
   const tons = typeof clientOrParams === "string" ? String(tonsArg ?? "") : String(clientOrParams.tons);
   try {
-    const apiKey = await AsyncStorage.getItem("gemini_api_key").catch(() => null);
+    const apiKey = await getSecureItem("gemini_api_key").catch(() => null);
     if (!apiKey) {
       return `MA Engineering Quote\n\nClient: ${client}\nProject: ${project}\nCapacity: ${tons} tons\n\nNote: Gemini API key set karein Admin Panel mein for AI-generated quotes.`;
     }
@@ -31,7 +31,7 @@ Include: scope of work, timeline (weeks), team size, safety measures, warranty. 
 
 export async function askLily(question: string): Promise<string> {
   try {
-    const apiKey = await AsyncStorage.getItem("gemini_api_key").catch(() => null);
+    const apiKey = await getSecureItem("gemini_api_key").catch(() => null);
     if (!apiKey) {
       return "Admin Panel mein Gemini API key set karo phir Lily kaam karegi! Settings → Admin → AI Keys";
     }
@@ -59,7 +59,7 @@ export async function generateFollowUp(params: {
 }): Promise<string> {
   const { client, project, daysSinceQuote, status } = params;
   try {
-    const apiKey = await AsyncStorage.getItem("gemini_api_key").catch(() => null);
+    const apiKey = await getSecureItem("gemini_api_key").catch(() => null);
     if (!apiKey) {
       return `Namaste ${client}! Aapke *${project}* project ke quote ke baare mein follow-up — kya aap decide kar paaye? Koi sawaal ho to bataiye, hum madad ke liye ready hain!`;
     }
@@ -87,7 +87,7 @@ export async function generateNegotiationReply(params: {
 }): Promise<string> {
   const { client, project, quotedAmount, clientOffer } = params;
   try {
-    const apiKey = await AsyncStorage.getItem("gemini_api_key").catch(() => null);
+    const apiKey = await getSecureItem("gemini_api_key").catch(() => null);
     if (!apiKey) {
       return `Namaste ${client}, aapka offer note kar liya hai. Hum ${project} project ke liye best possible rate dene ki koshish karenge — thodi der mein confirm karte hain. Admin Panel mein Gemini key add karein AI-negotiation ke liye.`;
     }

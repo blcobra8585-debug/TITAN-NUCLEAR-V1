@@ -6,6 +6,7 @@
  * ╚══════════════════════════════════════════════════╝
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getSecureItem } from "@/lib/security";
 import { GoogleGenerativeAI, ChatSession } from "@google/generative-ai";
 import { timeoutSignal } from "@/lib/timeout";
 
@@ -111,7 +112,7 @@ let geminiKeyCache = "";
 
 async function askGemini(message: string, modelId: AIModel): Promise<string> {
   try {
-    const key = await AsyncStorage.getItem("gemini_api_key");
+    const key = await getSecureItem("gemini_api_key");
     if (!key) return "⚙️ Gemini API key chahiye — Admin Panel mein set karo!";
     const apiModel = GEMINI_API_MAP[modelId] ?? "gemini-1.5-pro";
     if (geminiKeyCache !== key) { Object.keys(geminiSessions).forEach(k => delete (geminiSessions as any)[k]); geminiKeyCache = key; }
@@ -143,7 +144,7 @@ const gptHistory: { role: "user" | "assistant" | "system"; content: string }[] =
 ];
 
 async function askOpenAI(message: string, modelId: AIModel): Promise<string> {
-  const key = await AsyncStorage.getItem("openai_api_key");
+  const key = await getSecureItem("openai_api_key");
   if (!key) return "⚙️ OpenAI API key chahiye — Admin Panel mein set karo!";
   gptHistory.push({ role: "user", content: message });
   try {
@@ -178,7 +179,7 @@ const CLAUDE_MAP: Record<string, string> = {
 const claudeHistory: { role: "user" | "assistant"; content: string }[] = [];
 
 async function askClaude(message: string, modelId: AIModel): Promise<string> {
-  const key = await AsyncStorage.getItem("anthropic_api_key");
+  const key = await getSecureItem("anthropic_api_key");
   if (!key) return "⚙️ Anthropic API key chahiye — Admin Panel mein set karo!";
   claudeHistory.push({ role: "user", content: message });
   try {
@@ -215,7 +216,7 @@ const groqHistory: { role: "user" | "assistant" | "system"; content: string }[] 
 ];
 
 async function askGroq(message: string, modelId: AIModel): Promise<string> {
-  const key = await AsyncStorage.getItem("groq_api_key");
+  const key = await getSecureItem("groq_api_key");
   if (!key) return "⚙️ Groq API key chahiye (free at console.groq.com) — Admin Panel mein set karo!";
   groqHistory.push({ role: "user", content: message });
   try {
@@ -246,7 +247,7 @@ const deepseekHistory: { role: "user" | "assistant" | "system"; content: string 
 ];
 
 async function askDeepSeek(message: string, modelId: AIModel): Promise<string> {
-  const key = await AsyncStorage.getItem("deepseek_api_key");
+  const key = await getSecureItem("deepseek_api_key");
   if (!key) return "⚙️ DeepSeek API key chahiye — Admin Panel mein set karo!";
   deepseekHistory.push({ role: "user", content: message });
   try {
@@ -277,7 +278,7 @@ const mistralHistory: { role: "user" | "assistant" | "system"; content: string }
 ];
 
 async function askMistral(message: string, modelId: AIModel): Promise<string> {
-  const key = await AsyncStorage.getItem("mistral_api_key");
+  const key = await getSecureItem("mistral_api_key");
   if (!key) return "⚙️ Mistral API key chahiye — Admin Panel mein set karo!";
   mistralHistory.push({ role: "user", content: message });
   try {
@@ -305,7 +306,7 @@ async function askMistral(message: string, modelId: AIModel): Promise<string> {
 // ─── COHERE ───────────────────────────────────────────
 async function askCohere(message: string): Promise<string> {
   try {
-    const key = await AsyncStorage.getItem("cohere_api_key");
+    const key = await getSecureItem("cohere_api_key");
     if (!key) return "⚙️ Cohere API key chahiye — Admin Panel mein set karo!";
     const res = await fetch("https://api.cohere.com/v2/chat", {
       method: "POST",
@@ -322,7 +323,7 @@ async function askCohere(message: string): Promise<string> {
 // ─── PERPLEXITY ───────────────────────────────────────
 async function askPerplexity(message: string, modelId: AIModel): Promise<string> {
   try {
-    const key = await AsyncStorage.getItem("perplexity_api_key");
+    const key = await getSecureItem("perplexity_api_key");
     if (!key) return "⚙️ Perplexity API key chahiye — Admin Panel mein set karo!";
     const model = modelId === "perplexity-sonar-pro" ? "sonar-pro" : "sonar";
     const res = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -340,11 +341,11 @@ async function askPerplexity(message: string, modelId: AIModel): Promise<string>
 // ─── TITAN COMBINED ───────────────────────────────────
 async function askTitan(message: string): Promise<string> {
   const checks = await Promise.all([
-    AsyncStorage.getItem("gemini_api_key"),
-    AsyncStorage.getItem("openai_api_key"),
-    AsyncStorage.getItem("anthropic_api_key"),
-    AsyncStorage.getItem("groq_api_key"),
-    AsyncStorage.getItem("deepseek_api_key"),
+    getSecureItem("gemini_api_key"),
+    getSecureItem("openai_api_key"),
+    getSecureItem("anthropic_api_key"),
+    getSecureItem("groq_api_key"),
+    getSecureItem("deepseek_api_key"),
   ]);
   const [gemini, openai, anthropic, groq, deepseek] = checks;
   if (gemini) return askGemini(message, "gemini-1.5-pro");

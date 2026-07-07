@@ -10,12 +10,13 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
-import { getWAStatus, startWAConnect, disconnectWA, WAStatus } from "@/lib/waWebClient";
+import { getWAStatus, startWAConnect, disconnectWA, requestWAPairingCode, WAStatus } from "@/lib/waWebClient";
 import { useApp } from "@/context/AppContext";
 import { timeoutSignal } from "@/lib/timeout";
 
@@ -49,6 +50,10 @@ export default function WhatsAppScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [botEnabled, setBotEnabledState] = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [connectMode, setConnectMode] = useState<"qr" | "pairing">("pairing");
+  const [pairingPhone, setPairingPhone] = useState("");
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingError, setPairingError] = useState<string | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -105,6 +110,32 @@ export default function WhatsAppScreen() {
     } finally {
       setStatus("disconnected");
       setQr(null);
+      setLoading(false);
+    }
+  }
+
+  async function getPairingCode() {
+    if (!serverUrl || !pairingPhone.trim()) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setLoading(true);
+    setPairingCode(null);
+    setPairingError(null);
+    setStatus("connecting");
+    try {
+      await startWAConnect();
+      await new Promise(r => setTimeout(r, 2500));
+      const phone = pairingPhone.replace(/[^0-9]/g, "");
+      const result = await requestWAPairingCode(phone);
+      if (result.success && result.code) {
+        setPairingCode(result.code);
+      } else {
+        setPairingError(result.error ?? "Pairing code nahi mila. Server check karo.");
+        setStatus("disconnected");
+      }
+    } catch (e: any) {
+      setPairingError(e.message ?? "Unknown error");
+      setStatus("disconnected");
+    } finally {
       setLoading(false);
     }
   }
@@ -182,7 +213,73 @@ export default function WhatsAppScreen() {
               </View>
             )}
 
-            {status === "qr" && qr && (
+            {/* Connect Mode Toggle */}
+            {status !== "connected" && (
+              <View style={[styles.modeToggleRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <TouchableOpacity
+                  style={[styles.modeBtn, { backgroundColor: connectMode === "pairing" ? `${colors.neonBlue}25` : "transparent", borderColor: connectMode === "pairing" ? colors.neonBlue : "transparent" }]}
+                  onPress={() => { setConnectMode("pairing"); setPairingCode(null); setPairingError(null); }}
+                >
+                  <Feather name="hash" size={14} color={connectMode === "pairing" ? colors.neonBlue : colors.mutedForeground} />
+                  <Text style={[styles.modeBtnText, { color: connectMode === "pairing" ? colors.neonBlue : colors.mutedForeground }]}>Pairing Code</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modeBtn, { backgroundColor: connectMode === "qr" ? `${colors.neonBlue}25` : "transparent", borderColor: connectMode === "qr" ? colors.neonBlue : "transparent" }]}
+                  onPress={() => setConnectMode("qr")}
+                >
+                  <Feather name="grid" size={14} color={connectMode === "qr" ? colors.neonBlue : colors.mutedForeground} />
+                  <Text style={[styles.modeBtnText, { color: connectMode === "qr" ? colors.neonBlue : colors.mutedForeground }]}>QR Scan</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Pairing Code Card */}
+            {connectMode === "pairing" && status !== "connected" && (
+              <View style={[styles.pairingCard, { backgroundColor: colors.card, borderColor: `${colors.neonBlue}40` }]}>
+                <Text style={[styles.qrTitle, { color: colors.neonBlue }]}>📱 PAIRING CODE SE CONNECT</Text>
+                <Text style={[styles.qrInstr, { color: colors.mutedForeground }]}>
+                  {"Apna WhatsApp number daalo (country code ke saath)\nExample: 919876543210 (India = 91 + 10-digit)"}
+                </Text>
+                <View style={[styles.phoneInputRow, { backgroundColor: `${colors.neonBlue}10`, borderColor: `${colors.neonBlue}40` }]}>
+                  <Feather name="phone" size={16} color={colors.neonBlue} />
+                  <TextInput
+                    style={[styles.phoneInput, { color: colors.foreground }]}
+                    placeholder="919876543210"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={pairingPhone}
+                    onChangeText={setPairingPhone}
+                    keyboardType="phone-pad"
+                    maxLength={15}
+                  />
+                </View>
+                {pairingCode && (
+                  <View style={[styles.codeBox, { backgroundColor: "#00FF4110", borderColor: "#00FF4150" }]}>
+                    <Text style={[styles.codeLabel, { color: "#00FF41" }]}>✅ Yeh code WhatsApp mein enter karo:</Text>
+                    <Text style={[styles.codeValue, { color: "#00FF41" }]}>{pairingCode}</Text>
+                    <Text style={[styles.codeInstr, { color: colors.mutedForeground }]}>
+                      {"WhatsApp → 3 dots → Linked Devices → Link a Device → Phone Number se Link Karo"}
+                    </Text>
+                  </View>
+                )}
+                {pairingError && (
+                  <View style={[styles.errorBox, { backgroundColor: "#FF444410", borderColor: "#FF444450" }]}>
+                    <Feather name="alert-circle" size={14} color="#FF4444" />
+                    <Text style={[styles.errorText, { color: "#FF4444" }]}>{pairingError}</Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={[styles.mainBtn, { backgroundColor: colors.neonBlue, opacity: !serverUrl || loading || !pairingPhone.trim() ? 0.5 : 1, marginTop: 4 }]}
+                  onPress={getPairingCode}
+                  disabled={!serverUrl || loading || !pairingPhone.trim()}
+                >
+                  {loading ? <ActivityIndicator color="#000" /> : <Feather name="hash" size={20} color="#000" />}
+                  <Text style={styles.mainBtnText}>{loading ? "Code le raha hai..." : "Pairing Code Lo"}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* QR Code Card */}
+            {connectMode === "qr" && status === "qr" && qr && (
               <View style={[styles.qrCard, { backgroundColor: colors.card, borderColor: "#F59E0B50" }]}>
                 <Text style={[styles.qrTitle, { color: "#F59E0B" }]}>SCAN WITH WHATSAPP</Text>
                 <View style={styles.qrWrapper}>
@@ -235,17 +332,19 @@ export default function WhatsAppScreen() {
               ))}
             </View>
 
-            {/* Action Button */}
-            {status !== "connected" ? (
+            {/* QR Mode Connect Button */}
+            {connectMode === "qr" && status !== "connected" && (
               <TouchableOpacity
                 style={[styles.mainBtn, { backgroundColor: colors.neonBlue, opacity: !serverUrl || loading ? 0.5 : 1 }]}
                 onPress={connect}
                 disabled={!serverUrl || loading}
               >
-                {loading ? <ActivityIndicator color="#000" /> : <Feather name="link" size={20} color="#000" />}
-                <Text style={styles.mainBtnText}>{loading ? "Connecting..." : "Connect WhatsApp"}</Text>
+                {loading ? <ActivityIndicator color="#000" /> : <Feather name="grid" size={20} color="#000" />}
+                <Text style={styles.mainBtnText}>{loading ? "Connecting..." : "QR Code Laao"}</Text>
               </TouchableOpacity>
-            ) : (
+            )}
+            {/* Disconnect Button */}
+            {status === "connected" && (
               <TouchableOpacity style={[styles.mainBtn, { backgroundColor: "#FF4757" }]} onPress={disconnect} disabled={loading}>
                 <Feather name="link-2" size={20} color="#fff" />
                 <Text style={[styles.mainBtnText, { color: "#fff" }]}>Disconnect</Text>
@@ -422,4 +521,16 @@ const styles = StyleSheet.create({
   rateCard: { flex: 1, padding: 12, borderRadius: 10, alignItems: "center" },
   rateVal: { fontSize: 20, fontFamily: "Inter_700Bold" },
   rateLabel: { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 2 },
+  modeToggleRow: { flexDirection: "row", borderRadius: 14, borderWidth: 1, padding: 4, gap: 4 },
+  modeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, borderWidth: 1 },
+  modeBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  pairingCard: { padding: 20, borderRadius: 16, borderWidth: 1.5, gap: 14 },
+  phoneInputRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 13, borderRadius: 12, borderWidth: 1 },
+  phoneInput: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+  codeBox: { padding: 16, borderRadius: 12, borderWidth: 1, gap: 6, alignItems: "center" },
+  codeLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  codeValue: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: 6, textAlign: "center" },
+  codeInstr: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 17 },
+  errorBox: { flexDirection: "row", gap: 8, padding: 12, borderRadius: 10, borderWidth: 1, alignItems: "flex-start" },
+  errorText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
 });

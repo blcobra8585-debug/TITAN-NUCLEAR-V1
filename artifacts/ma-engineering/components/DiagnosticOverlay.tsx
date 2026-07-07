@@ -100,13 +100,13 @@ export default function DiagnosticOverlay() {
       return () => { mounted = false; };
     }
     AsyncStorage.getItem('debug_overlay').then(v => {
-      if (mounted) setVisible(v !== '0');   // default ON (undefined → show)
+      if (mounted) setVisible(v === '1');   // default OFF — enable in Admin Panel
     }).catch((err) => {
       // Can't push to diagWarn here (may cause circular dep at module init),
       // so just default to visible if AsyncStorage fails.
       // eslint-disable-next-line no-console
-      console.warn('[DiagnosticOverlay] AsyncStorage gate failed, defaulting to visible:', err);
-      if (mounted) setVisible(true);
+      console.warn('[DiagnosticOverlay] AsyncStorage gate failed:', err);
+      if (mounted) setVisible(false);
     });
     return () => { mounted = false; };
   }, []);

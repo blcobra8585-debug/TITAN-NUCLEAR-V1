@@ -46,3 +46,15 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 export default app;
+
+// ── Server keepalive — self-ping every 5 min to prevent Replit from sleeping ──
+// Only runs if REPLIT_DEV_DOMAIN is set (i.e. running on Replit)
+const replitDomain = process.env["REPLIT_DEV_DOMAIN"] || process.env["REPLIT_DOMAINS"]?.split(",")[0];
+if (replitDomain) {
+  const keepAliveUrl = `https://${replitDomain}/api/healthz`;
+  setInterval(() => {
+    fetch(keepAliveUrl, { signal: AbortSignal.timeout(10000) })
+      .then(() => {})
+      .catch(() => {}); // silently ignore — just keeping connection alive
+  }, 5 * 60 * 1000); // every 5 minutes
+}
