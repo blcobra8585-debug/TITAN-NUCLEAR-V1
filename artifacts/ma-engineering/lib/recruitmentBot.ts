@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getSecureItem } from "@/lib/security";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { addDoc, collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "./firebase";
@@ -62,7 +63,7 @@ export async function generateJobPost(roleData: JobRole, location: string): Prom
   const cleanLocation = location?.trim() || "Pan India";
 
   // If Gemini key missing, fallback to a safe template (no crash)
-  const apiKey = await AsyncStorage.getItem("gemini_api_key").catch(() => null);
+  const apiKey = await getSecureItem("gemini_api_key").catch(() => null);
   if (!apiKey) {
     const postContent =
       `📢 *MA Engineering Hiring* 🔥\n\n` +

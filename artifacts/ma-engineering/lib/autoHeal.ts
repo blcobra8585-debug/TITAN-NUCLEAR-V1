@@ -5,6 +5,7 @@
  * Firebase Console with device info, OS version, and full stack trace.
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getSecureItem } from "@/lib/security";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { db } from "./firebase";
@@ -250,7 +251,7 @@ export interface DiagnosticResult {
 export async function runDiagnostics(): Promise<DiagnosticResult[]> {
   const results: DiagnosticResult[] = [];
 
-  const geminiKey = await AsyncStorage.getItem("gemini_api_key");
+  const geminiKey = await getSecureItem("gemini_api_key").catch(() => null);
   if (!geminiKey || geminiKey.length < 10) {
     results.push({
       issue: "Gemini API Key missing",
@@ -261,7 +262,7 @@ export async function runDiagnostics(): Promise<DiagnosticResult[]> {
     results.push({ issue: "Gemini API Key", status: "ok" });
   }
 
-  const elKey = await AsyncStorage.getItem("elevenlabs_api_key");
+  const elKey = await getSecureItem("elevenlabs_api_key").catch(() => null);
   results.push({
     issue: "ElevenLabs Voice Key",
     status: elKey ? "ok" : "warning",

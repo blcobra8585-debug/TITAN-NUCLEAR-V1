@@ -25,6 +25,7 @@ async function fetchIndiaMART(query_str: string, glid: string, key: string): Pro
 
 async function saveLead(lead: any): Promise<void> {
   try {
+    if (!db) return; // Firebase not ready yet
     const phone = lead.SENDER_MOBILE || lead.SENDER_PHONE || "";
     const name = lead.SENDER_NAME || "Unknown";
     const message = lead.SUBJECT || lead.MESSAGE || "";

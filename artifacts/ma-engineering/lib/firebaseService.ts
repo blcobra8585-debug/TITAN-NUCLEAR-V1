@@ -43,7 +43,7 @@ export async function saveQuote(data: {
   referredBy?: string;
   notes?: string;
 }) {
-  if (!firebaseReady) {
+  if (!firebaseReady || !db) {
     console.warn("[firebaseService] saveQuote skipped — Firebase not ready");
     return;
   }
@@ -61,32 +61,32 @@ export async function saveQuote(data: {
 }
 
 export async function updateQuoteNotes(docId: string, notes: string) {
-  if (!firebaseReady) return;
+  if (!firebaseReady || !db) return;
   await updateDoc(doc(db, "quotes", docId), { notes });
 }
 
 export async function updateQuoteReferral(docId: string, referredBy: string) {
-  if (!firebaseReady) return;
+  if (!firebaseReady || !db) return;
   await updateDoc(doc(db, "quotes", docId), { referredBy });
 }
 
 export async function setQuoteAmcDate(docId: string, amcDate: string) {
-  if (!firebaseReady) return;
+  if (!firebaseReady || !db) return;
   await updateDoc(doc(db, "quotes", docId), { amcDate });
 }
 
 export async function setQuoteFollowUpDate(docId: string, followUpDate: string) {
-  if (!firebaseReady) return;
+  if (!firebaseReady || !db) return;
   await updateDoc(doc(db, "quotes", docId), { followUpDate });
 }
 
 export async function markQuoteInvoiced(docId: string, invoiceNumber: string) {
-  if (!firebaseReady) return;
+  if (!firebaseReady || !db) return;
   await updateDoc(doc(db, "quotes", docId), { invoiced: true, invoiceNumber, invoicedAt: serverTimestamp() });
 }
 
 export async function getQuotes() {
-  if (!firebaseReady) return [];
+  if (!firebaseReady || !db) return [];
   const snap = await getDocs(
     query(collection(db, "quotes"), orderBy("timestamp", "desc"))
   );
@@ -96,7 +96,7 @@ export async function getQuotes() {
 export function listenToQuotes(
   cb: (docs: { id: string; [key: string]: any }[]) => void
 ) {
-  if (!firebaseReady) {
+  if (!firebaseReady || !db) {
     cb([]);
     return () => {};
   }
@@ -107,12 +107,12 @@ export function listenToQuotes(
 }
 
 export async function updateQuoteStatus(docId: string, status: string) {
-  if (!firebaseReady) return;
+  if (!firebaseReady || !db) return;
   await updateDoc(doc(db, "quotes", docId), { status });
 }
 
 export async function saveChatMessage(message: string, isLily: boolean) {
-  if (!firebaseReady) return;
+  if (!firebaseReady || !db) return;
   await addDoc(collection(db, "chat_history"), {
     message,
     isLily,
@@ -121,7 +121,7 @@ export async function saveChatMessage(message: string, isLily: boolean) {
 }
 
 export async function getTotalRevenue(): Promise<number> {
-  if (!firebaseReady) return 0;
+  if (!firebaseReady || !db) return 0;
   const snap = await getDocs(collection(db, "quotes"));
   let total = 0;
   snap.docs.forEach((d) => {
@@ -131,12 +131,12 @@ export async function getTotalRevenue(): Promise<number> {
 }
 
 export async function saveLeadToFirebase(lead: FirebaseLead): Promise<void> {
-  if (!firebaseReady) return;
+  if (!firebaseReady || !db) return;
   await setDoc(doc(db, "leads", lead.id), lead);
 }
 
 export async function getLeadsFromFirebase(): Promise<FirebaseLead[]> {
-  if (!firebaseReady) return [];
+  if (!firebaseReady || !db) return [];
   try {
     const snap = await getDocs(
       query(collection(db, "leads"), orderBy("timestamp", "desc"), limit(100))
@@ -151,7 +151,7 @@ export async function updateLeadInFirebase(
   id: string,
   update: Partial<FirebaseLead>
 ): Promise<void> {
-  if (!firebaseReady) return;
+  if (!firebaseReady || !db) return;
   await updateDoc(doc(db, "leads", id), update);
 }
 
@@ -162,7 +162,7 @@ export async function getLeadStatsFromFirebase(): Promise<{
   today: number;
   bySource: Record<string, number>;
 }> {
-  if (!firebaseReady) {
+  if (!firebaseReady || !db) {
     return { total: 0, replied: 0, unreplied: 0, today: 0, bySource: {} };
   }
   try {
@@ -186,7 +186,7 @@ export async function getLeadStatsFromFirebase(): Promise<{
 }
 
 export function listenToLeads(cb: (leads: FirebaseLead[]) => void): () => void {
-  if (!firebaseReady) {
+  if (!firebaseReady || !db) {
     cb([]);
     return () => {};
   }

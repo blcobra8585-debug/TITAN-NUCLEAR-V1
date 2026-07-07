@@ -121,7 +121,9 @@ async function askGemini(message: string, modelId: AIModel): Promise<string> {
       const model = genAI.getGenerativeModel({ model: apiModel, systemInstruction: MA_SYSTEM_PROMPT, generationConfig: { temperature: 0.85, topP: 0.95, maxOutputTokens: 1500 } });
       geminiSessions[modelId] = model.startChat();
     }
-    const result = await geminiSessions[modelId]!.sendMessage(message);
+    const session = geminiSessions[modelId];
+    if (!session) throw new Error("Gemini session not initialized");
+    const result = await session.sendMessage(message);
     return result.response.text();
   } catch (e: any) {
     delete geminiSessions[modelId];
@@ -381,17 +383,26 @@ export function resetAllAIChats(): void {
 }
 
 export async function getAvailableModels(): Promise<AIModelInfo[]> {
-  const keys = await AsyncStorage.multiGet([
-    "gemini_api_key", "openai_api_key", "anthropic_api_key",
-    "groq_api_key", "deepseek_api_key", "mistral_api_key",
-    "cohere_api_key", "perplexity_api_key",
+  // Must use getSecureItem (encrypted storage) — AsyncStorage would return encrypted garbage
+  const [gemini, openai, anthropic, groq, deepseek, mistral, cohere, perplexity] = await Promise.all([
+    getSecureItem("gemini_api_key").catch(() => null),
+    getSecureItem("openai_api_key").catch(() => null),
+    getSecureItem("anthropic_api_key").catch(() => null),
+    getSecureItem("groq_api_key").catch(() => null),
+    getSecureItem("deepseek_api_key").catch(() => null),
+    getSecureItem("mistral_api_key").catch(() => null),
+    getSecureItem("cohere_api_key").catch(() => null),
+    getSecureItem("perplexity_api_key").catch(() => null),
   ]);
-  const keyMap: Record<string, boolean> = {};
-  keys.forEach(([k, v]) => { keyMap[k] = !!v; });
-
+  const keyMap: Record<string, string | null> = {
+    gemini_api_key: gemini, openai_api_key: openai, anthropic_api_key: anthropic,
+    groq_api_key: groq, deepseek_api_key: deepseek, mistral_api_key: mistral,
+    cohere_api_key: cohere, perplexity_api_key: perplexity,
+  };
+  const hasAnyKey = Object.values(keyMap).some(Boolean);
   return ALL_AI_MODELS.filter(m => {
-    if (m.id === "titan") return Object.values(keyMap).some(Boolean);
-    return keyMap[m.apiKeyField] || m.free;
+    if (m.id === "titan") return hasAnyKey;
+    return !!keyMap[m.apiKeyField] || m.free;
   });
 }
 

@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getSecureItem } from "@/lib/security";
 import { Linking } from "react-native";
 
 export interface WhatsAppConfig {
@@ -10,9 +11,9 @@ export interface WhatsAppConfig {
 export async function getWhatsAppConfig(): Promise<WhatsAppConfig | null> {
   try {
     const [serverUrl, token, wabaId] = await Promise.all([
-      AsyncStorage.getItem("server_url"),
-      AsyncStorage.getItem("wa_token"),
-      AsyncStorage.getItem("waba_id"),
+      AsyncStorage.getItem("server_url"),             // plain — not sensitive
+      getSecureItem("wa_token").catch(() => null),    // encrypted
+      getSecureItem("waba_id").catch(() => null),     // encrypted
     ]);
     if (!serverUrl && !token) return null;
     return { serverUrl: serverUrl ?? "", token: token ?? "", wabaId: wabaId ?? "" };
@@ -36,7 +37,7 @@ export async function sendWhatsAppMessage(
       }
       return { success: false, error: "WhatsApp installed nahi hai" };
     }
-    const resp = await fetch(`${config.serverUrl}/send`, {
+    const resp = await fetch(`${config.serverUrl}/api/wa/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${config.token}` },
       body: JSON.stringify({ phone, message }),

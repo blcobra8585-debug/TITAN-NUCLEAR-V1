@@ -9,11 +9,11 @@
  *   (c) Both configured      → both fire in parallel
  *   (d) Neither configured   → silent no-op
  *
- * Fix: WA token + WABA ID now read from SecureStore (encrypted, hardware-backed)
+ * Fix: WA token + WABA ID now read via getSecureItem() (encrypted AsyncStorage)
  * instead of plain AsyncStorage — consistent with how AppContext stores them.
  */
 import { Platform } from "react-native";
-import * as SecureStore from "expo-secure-store";
+import { getSecureItem } from "@/lib/security";
 import { sendTelegramAlert } from "@/lib/telegramAlert";
 import { timeoutSignal } from "@/lib/timeout";
 
@@ -46,10 +46,10 @@ async function sendViaWhatsApp(
   details: string,
   context?: string,
 ): Promise<void> {
-  // Read from SecureStore (encrypted) — same location AppContext writes to
+  // Read via getSecureItem() — decrypts from AsyncStorage (same as AppContext write path)
   const [waToken, wabaId] = await Promise.all([
-    SecureStore.getItemAsync("wa_token").catch(() => null),
-    SecureStore.getItemAsync("waba_id").catch(() => null),
+    getSecureItem("wa_token").catch(() => null),
+    getSecureItem("waba_id").catch(() => null),
   ]);
 
   if (!waToken || !wabaId) {

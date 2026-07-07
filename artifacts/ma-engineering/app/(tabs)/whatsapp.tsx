@@ -123,7 +123,23 @@ export default function WhatsAppScreen() {
     setStatus("connecting");
     try {
       await startWAConnect();
-      await new Promise(r => setTimeout(r, 2500));
+      // Poll server status for up to 8s until socket is ready (not just 2.5s fixed wait)
+      let socketReady = false;
+      for (let i = 0; i < 16; i++) {
+        await new Promise(r => setTimeout(r, 500));
+        try {
+          const st = await getWAStatus();
+          if (st.status === "connecting" || st.status === "qr" || st.status === "connected") {
+            socketReady = true;
+            break;
+          }
+        } catch { /* ignore */ }
+      }
+      if (!socketReady) {
+        setPairingError("Server mein WhatsApp socket ready nahi hua. Server URL check karo aur dobara try karo.");
+        setStatus("disconnected");
+        return;
+      }
       const phone = pairingPhone.replace(/[^0-9]/g, "");
       const result = await requestWAPairingCode(phone);
       if (result.success && result.code) {

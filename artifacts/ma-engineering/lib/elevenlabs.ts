@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getSecureItem } from "@/lib/security";
 import { Audio } from "expo-av";
 
 const DEFAULT_VOICE_ID = "cgSgspJ2msm6clMCkdW9";
@@ -38,7 +39,7 @@ export async function speakWithLily(text: string): Promise<void> {
     // Stop any currently playing audio before starting a new one
     await stopSpeaking();
 
-    const apiKey = await AsyncStorage.getItem("elevenlabs_api_key").catch(() => null);
+    const apiKey = await getSecureItem("elevenlabs_api_key").catch(() => null);
     if (!apiKey) return;
 
     const voiceId =
@@ -109,9 +110,7 @@ export async function getLilyVoices(): Promise<
   Array<{ voice_id: string; name: string }>
 > {
   try {
-    const apiKey = await AsyncStorage.getItem("elevenlabs_api_key").catch(
-      () => null
-    );
+    const apiKey = await getSecureItem("elevenlabs_api_key").catch(() => null);
     if (!apiKey) return [];
     const resp = await fetch(`${BASE_URL}/voices`, {
       headers: { "xi-api-key": apiKey },
