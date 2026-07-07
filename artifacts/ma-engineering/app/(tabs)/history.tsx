@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/context/ThemeContext";
-import { db } from "@/lib/firebase";
+import { db, firebaseReady } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, updateDoc, doc, deleteDoc } from "firebase/firestore";
 import { sendWhatsAppMessage, buildInvoiceMessage } from "@/lib/whatsapp";
 import { generateFollowUp, generateNegotiationReply } from "@/lib/gemini";
@@ -76,6 +76,20 @@ export default function HistoryScreen() {
   }, [selected?.id]);
 
   useEffect(() => {
+    // Guard: db is undefined for the first 150ms (Firebase init is deferred).
+    // Retry after 200ms to give TurboModules time to register on New Architecture.
+    if (!firebaseReady || !db) {
+      setLoading(false);
+      const retry = setTimeout(() => {
+        if (firebaseReady && db) {
+          const q = query(collection(db, "quotes"), orderBy("createdAt", "desc"));
+          onSnapshot(q, snap => {
+            setQuotes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Quote)));
+          }, () => {});
+        }
+      }, 300);
+      return () => clearTimeout(retry);
+    }
     const q = query(collection(db, "quotes"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(q, snap => {
       setQuotes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Quote)));

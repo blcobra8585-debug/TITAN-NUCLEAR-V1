@@ -22,10 +22,10 @@
       "package": "com.maengineering.titan",
       "versionCode": 7,
       "googleServicesFile": "./google-services.json",
-      "compileSdkVersion": 36,
-      "targetSdkVersion": 36,
+      "compileSdkVersion": 35,
+      "targetSdkVersion": 35,
       "minSdkVersion": 24,
-      "buildToolsVersion": "36.0.0",
+      "buildToolsVersion": "35.0.0",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#060610"
