@@ -128,6 +128,7 @@ jobs:
             "$(pwd)/artifacts/ma-engineering/node_modules/expo-router/_ctx.android.js"; do
             if [ -f "$CTX_FILE" ]; then
               sed -i "s|process\.env\.EXPO_ROUTER_APP_ROOT|'app'|g" "$CTX_FILE"
+              sed -i "s|process\.env\.EXPO_ROUTER_IMPORT_MODE|'sync'|g" "$CTX_FILE"
               echo "✅ Patched $CTX_FILE"
               head -5 "$CTX_FILE"
             fi
@@ -178,6 +179,7 @@ jobs:
         run: ./gradlew assembleRelease --no-daemon -x lint --stacktrace
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx6g -Dorg.gradle.daemon=false"
+          EXPO_ROUTER_IMPORT_MODE: sync
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
           CMAKE_PATH: /usr/local/lib/android/sdk/cmake/3.31.3/bin
 
