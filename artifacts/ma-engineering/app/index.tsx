@@ -102,35 +102,45 @@ export default function SplashScreen() {
       diagLog("SplashScreen", "timer fired — attempting navigation to tabs");
       diagStage("navigating to tabs…");
 
-      // Strategy 1 — standard expo-router replace to the (tabs) group
+      // Strategy 1 — standard replace.
+      // Navigation SUCCESS = this component unmounts = isMounted.current → false.
+      // We detect FAILURE by checking isMounted.current after a short delay,
+      // because expo-router does NOT throw synchronously on navigation failure.
       try {
         router.replace("/(tabs)");
-        diagLog("SplashScreen", "router.replace('/(tabs)') fired");
-        return;
+        diagLog("SplashScreen", "router.replace('/(tabs)') called");
       } catch (e1: any) {
-        diagWarn("SplashScreen/nav-1", e1?.message ?? String(e1));
+        diagWarn("SplashScreen/nav-1-sync", e1?.message ?? String(e1));
       }
 
-      // Strategy 2 — push instead of replace
-      try {
-        router.push("/(tabs)");
-        diagLog("SplashScreen", "router.push('/(tabs)') fired");
-        return;
-      } catch (e2: any) {
-        diagWarn("SplashScreen/nav-2", e2?.message ?? String(e2));
-      }
+      // Strategy 2 — 600ms later, if still mounted, Strategy 1 silently failed
+      setTimeout(() => {
+        if (!isMounted.current) return; // already navigated — done
+        diagWarn("SplashScreen/nav-1-failed", "still mounted 600ms after replace — trying push");
+        try {
+          router.push("/(tabs)");
+        } catch (e2: any) {
+          diagWarn("SplashScreen/nav-2-sync", e2?.message ?? String(e2));
+        }
+      }, 600);
 
-      // Strategy 3 — navigate to first tab screen directly
-      try {
-        (router as any).navigate("/(tabs)/index");
-        diagLog("SplashScreen", "router.navigate('/(tabs)/index') fired");
-        return;
-      } catch (e3: any) {
-        diagWarn("SplashScreen/nav-3", e3?.message ?? String(e3));
-      }
+      // Strategy 3 — 1200ms later, if still mounted, try direct screen path
+      setTimeout(() => {
+        if (!isMounted.current) return;
+        diagWarn("SplashScreen/nav-2-failed", "still mounted 1200ms after — trying index path");
+        try {
+          (router as any).navigate("/(tabs)/index");
+        } catch (e3: any) {
+          diagWarn("SplashScreen/nav-3-sync", e3?.message ?? String(e3));
+        }
+      }, 1200);
 
-      // All strategies failed — fire the alert
-      sendSplashStuckAlert(Date.now() - SPLASH_START).catch(() => {});
+      // Strategy 4 — 2000ms later, if still completely stuck → send alert
+      setTimeout(() => {
+        if (!isMounted.current) return;
+        diagWarn("SplashScreen/all-nav-failed", "all 3 strategies failed — sending alert");
+        sendSplashStuckAlert(Date.now() - SPLASH_START).catch(() => {});
+      }, 2000);
     }, 3400);
 
     // Stuck detector: agar 10 seconds baad bhi ye component mount hai →
