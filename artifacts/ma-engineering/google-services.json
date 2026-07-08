@@ -9,6 +9,25 @@
       "client_info": {
         "mobilesdk_app_id": "1:132870376585:android:6ab5faa40b6e5da5390a58",
         "android_client_info": {
+          "package_name": "com.maengineering"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBm0qftjdqRoH34VWWc0Tgz4kUcVA1LkXE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:132870376585:android:2d1f0a9abed34e91390a58",
+        "android_client_info": {
           "package_name": "com.maengineering.titan"
         }
       },
