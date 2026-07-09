@@ -71,13 +71,17 @@ async function handleIncomingMessage(msg: any) {
     if (!text.trim()) return;
 
     const phone = jid.replace("@s.whatsapp.net", "");
-    knownPhones.add(phone); // mark as known — they messaged us first
     logger.info({ phone, text: text.slice(0, 80) }, "Incoming WA message");
 
     if (!isBotEnabled()) return;
 
-    // Fix(A): Skip reply if first-contact rate limit is exceeded
+    // Fix(A): Check rate limit BEFORE marking phone as known — otherwise every
+    // inbound message is instantly whitelisted and the limiter is always bypassed.
     if (!isFirstContactAllowed(phone)) return;
+
+    // Mark as known only after passing the rate-limit gate, so subsequent
+    // messages from this contact are not throttled again.
+    knownPhones.add(phone);
 
     // Fix(A): Randomized 2-6 second delay before every reply — a consistent
     // instant-reply pattern is one of WhatsApp's strongest spam signals.
