@@ -25,7 +25,10 @@ Include: scope of work, timeline (weeks), team size, safety measures, warranty. 
     const result = await model.generateContent(prompt);
     return result.response.text();
   } catch (err: any) {
-    return `Quote generation failed: ${err?.message || "Unknown error"}.\n\nPlease check your Gemini API key in Admin Panel.`;
+    // Fix(C): Throw a user-friendly error so the caller (QuoteScreen) shows
+    // an Alert instead of storing the raw error string as a quote — which
+    // would expose the API JSON blob and still show the "Send via WhatsApp" button.
+    throw new Error("Quote generate nahi ho paya, thodi der baad try karein.");
   }
 }
 
@@ -45,7 +48,8 @@ Reply helpfully in Hinglish, max 3 sentences.`;
     const result = await model.generateContent(prompt);
     return result.response.text();
   } catch (err: any) {
-    return `Lily error: ${err?.message || "Please check your API key in Admin Panel."}`;
+    // Fix(C): Return a user-friendly message — never expose raw API errors.
+    return "Lily abhi available nahi hai. Thodi der baad dobara try karein.";
   }
 }
 

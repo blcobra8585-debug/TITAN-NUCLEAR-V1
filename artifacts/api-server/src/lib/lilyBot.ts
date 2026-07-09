@@ -153,7 +153,13 @@ export async function generateBotReply(phone: string, userMessage: string): Prom
     return reply;
   } catch (err: any) {
     logger.error({ err: err.message }, "Bot Gemini Pro error");
-    // Fallback response
-    return "Namaskar! Aapka message mila. Thodi der mein reply karengi. 🙏 — Lily, MA Engineering";
+    // Fix(A+C): Varied fallback phrasings — sending the same fixed string to
+    // every contact is a WhatsApp spam signal and looks robotic to clients.
+    const FALLBACKS = [
+      "Namaskar! Aapka message mila. Thodi der mein reply karengi. 🙏 — Lily, MA Engineering",
+      "Hello! Main Lily hoon — MA Engineering se. Abhi thodi busy hoon, jald hi connect karti hoon! 🏗️",
+      "Shukriya aapke message ke liye! Hum aapki query dekh rahe hain, thodi der mein jawab milega. 🙏",
+    ];
+    return FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)];
   }
 }

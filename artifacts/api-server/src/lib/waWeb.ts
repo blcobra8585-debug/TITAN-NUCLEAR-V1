@@ -11,7 +11,10 @@ import path from "path";
 import os from "os";
 import qrcode from "qrcode";
 
-const AUTH_DIR = path.join(os.tmpdir(), "ma_titan_wa_auth");
+// Fix(B): Use a persistent directory inside the project so the session
+// survives server restarts and container recycling.  os.tmpdir() is
+// commonly wiped on restart — that was the root cause of "QR every time".
+const AUTH_DIR = path.join(process.cwd(), "wa_auth");
 
 export type WAStatus = "disconnected" | "connecting" | "qr" | "connected";
 
@@ -68,12 +71,17 @@ async function handleIncomingMessage(msg: any) {
     if (!text.trim()) return;
 
     const phone = jid.replace("@s.whatsapp.net", "");
+    knownPhones.add(phone); // mark as known — they messaged us first
     logger.info({ phone, text: text.slice(0, 80) }, "Incoming WA message");
 
     if (!isBotEnabled()) return;
 
-    // Small delay to seem human
-    await new Promise((r) => setTimeout(r, 1500 + Math.random() * 2000));
+    // Fix(A): Skip reply if first-contact rate limit is exceeded
+    if (!isFirstContactAllowed(phone)) return;
+
+    // Fix(A): Randomized 2-6 second delay before every reply — a consistent
+    // instant-reply pattern is one of WhatsApp's strongest spam signals.
+    await new Promise((r) => setTimeout(r, 2000 + Math.random() * 4000));
 
     if (!state.sock || state.status !== "connected") return;
 
@@ -100,6 +108,29 @@ async function handleIncomingMessage(msg: any) {
   } catch (err: any) {
     logger.error({ err: err.message }, "Error handling incoming message");
   }
+}
+
+// Fix(A): Rate-limit first-contact messages — messaging many strangers in a
+// short window is the pattern WhatsApp flags hardest.
+const firstContactLog: { phone: string; ts: number }[] = [];
+const FIRST_CONTACT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const FIRST_CONTACT_MAX = 5; // max new numbers per hour
+
+// Track known phones (anyone we've seen a message FROM is not "first contact")
+const knownPhones = new Set<string>();
+
+function isFirstContactAllowed(phone: string): boolean {
+  if (knownPhones.has(phone)) return true; // returning contact, no restriction
+  const now = Date.now();
+  // Prune old entries outside the window
+  const recent = firstContactLog.filter(e => now - e.ts < FIRST_CONTACT_WINDOW_MS);
+  firstContactLog.splice(0, firstContactLog.length, ...recent);
+  if (recent.length >= FIRST_CONTACT_MAX) {
+    logger.warn({ phone, count: recent.length }, "First-contact rate limit hit — queued");
+    return false;
+  }
+  firstContactLog.push({ phone, ts: now });
+  return true;
 }
 
 let initInProgress = false;

@@ -64,7 +64,9 @@ export function startBotReplyPolling(serverUrl: string): void {
       if (replies.length > lastCount && lastCount > 0) {
         const newest = replies[0];
         await notifyBotReply(newest.phone ?? "", newest.botMsg ?? "");
-        await setBadgeCount(replies.length - lastCount);
+        // Fix(E2): Set the total pending count, not the delta since last poll.
+        // replies.length - lastCount showed only the increment, not the real total.
+        await setBadgeCount(replies.length);
       }
       lastCount = replies.length;
     } catch {}
