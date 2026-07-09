@@ -145,12 +145,18 @@ export default function HistoryScreen() {
       return;
     }
     const phone = digits.length === 10 ? "91" + digits : digits;
-    const r = await sendWhatsAppMessage(phone, msg);
-    if (r.success) {
-      burstRef.current?.fire();
-      Alert.alert("✅", "WhatsApp pe bhej diya!");
-    } else {
-      Alert.alert("ℹ️", r.error ?? "Settings mein WA Token set karo, tab send hoga.");
+    // Fix(E1): wrap sendWhatsAppMessage in try/catch — without this, any
+    // network/throw causes the function to exit silently with no user feedback.
+    try {
+      const r = await sendWhatsAppMessage(phone, msg);
+      if (r.success) {
+        burstRef.current?.fire();
+        Alert.alert("✅", "WhatsApp pe bhej diya!");
+      } else {
+        Alert.alert("ℹ️", r.error ?? "Settings mein WA Token set karo, tab send hoga.");
+      }
+    } catch (e: any) {
+      Alert.alert("❌ Error", e.message?.slice(0, 100) ?? "WhatsApp send nahi hua. Dobara try karo.");
     }
   }
 

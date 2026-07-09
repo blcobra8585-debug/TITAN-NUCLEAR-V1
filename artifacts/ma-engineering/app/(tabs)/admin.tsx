@@ -61,6 +61,16 @@ export default function AdminScreen() {
   const [showPinSection, setShowPinSection] = useState(false);
   const [imGlid, setImGlid] = useState("");
   const [imKey, setImKey] = useState("");
+  // Business Profile state (for PDF generation)
+  const [bizGstin, setBizGstin]         = useState("");
+  const [bizOwnerName, setBizOwnerName] = useState("");
+  const [bizPhone1, setBizPhone1]       = useState("");
+  const [bizPhone2, setBizPhone2]       = useState("");
+  const [bizAddress, setBizAddress]     = useState("");
+  const [bizEmail, setBizEmail]         = useState("");
+  const [bizPayTerm1, setBizPayTerm1]   = useState("10% After team reach on site");
+  const [bizPayTerm2, setBizPayTerm2]   = useState("40% after erection of crane");
+  const [bizPayTerm3, setBizPayTerm3]   = useState("50% after completing of job work");
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   useEffect(() => {
@@ -83,6 +93,24 @@ export default function AdminScreen() {
       setKeyValues(map);
       setImGlid(glid ?? "");
       setImKey(imk ?? "");
+      // Load business profile
+      const BIZ_KEYS = [
+        "biz_gstin","biz_owner_name","biz_phone1","biz_phone2",
+        "biz_address","biz_email",
+        "biz_payment_term1","biz_payment_term2","biz_payment_term3",
+      ];
+      const bizPairs = await AsyncStorage.multiGet(BIZ_KEYS).catch(() => []);
+      const bm: Record<string,string> = {};
+      for (const [k, v] of bizPairs) if (v) bm[k] = v;
+      if (bm["biz_gstin"])         setBizGstin(bm["biz_gstin"]);
+      if (bm["biz_owner_name"])    setBizOwnerName(bm["biz_owner_name"]);
+      if (bm["biz_phone1"])        setBizPhone1(bm["biz_phone1"]);
+      if (bm["biz_phone2"])        setBizPhone2(bm["biz_phone2"]);
+      if (bm["biz_address"])       setBizAddress(bm["biz_address"]);
+      if (bm["biz_email"])         setBizEmail(bm["biz_email"]);
+      if (bm["biz_payment_term1"]) setBizPayTerm1(bm["biz_payment_term1"]);
+      if (bm["biz_payment_term2"]) setBizPayTerm2(bm["biz_payment_term2"]);
+      if (bm["biz_payment_term3"]) setBizPayTerm3(bm["biz_payment_term3"]);
       getLastHuntTime().then(setLastHunt).catch(() => setLastHunt("Error"));
       getLastRecruitmentRun().then(setLastRecruit).catch(() => setLastRecruit("Error"));
       hasPIN().then(setPinEnabled).catch(() => {});
@@ -108,6 +136,15 @@ export default function AdminScreen() {
     await AsyncStorage.multiSet([
       ["indiamart_glid", imGlid.trim()],
       ["indiamart_key", imKey.trim()],
+      ["biz_gstin",         bizGstin.trim()],
+      ["biz_owner_name",    bizOwnerName.trim()],
+      ["biz_phone1",        bizPhone1.trim()],
+      ["biz_phone2",        bizPhone2.trim()],
+      ["biz_address",       bizAddress.trim()],
+      ["biz_email",         bizEmail.trim()],
+      ["biz_payment_term1", bizPayTerm1.trim()],
+      ["biz_payment_term2", bizPayTerm2.trim()],
+      ["biz_payment_term3", bizPayTerm3.trim()],
     ]).catch(() => {});
 
     // Sync app context so in-memory values are up to date immediately
@@ -308,6 +345,44 @@ export default function AdminScreen() {
             </TouchableOpacity>
           </View>
         )}
+      </View>
+
+      {/* ── Business Profile (for PDF quotes) ── */}
+      <View style={[styles.section, { borderColor: "#F26207" + "40" }]}>
+        <Text style={[styles.sectionTitle, { color: "#F26207" }]}>🏢 BUSINESS PROFILE (PDF QUOTES)</Text>
+        <Text style={[styles.sectionSub, { color: colors.mutedForeground }]}>Yeh details PDF quote letterhead mein auto-fill hongi. Ek baar set karo, hamesha use hoga.</Text>
+        {[
+          { label: "GSTIN Number", placeholder: "09PQXPS2501G1Z2", val: bizGstin, set: setBizGstin, icon: "file-text" as const },
+          { label: "Proprietor Name", placeholder: "Suhan Siddiqui", val: bizOwnerName, set: setBizOwnerName, icon: "user" as const },
+          { label: "Phone 1", placeholder: "+917895643069", val: bizPhone1, set: setBizPhone1, icon: "phone" as const },
+          { label: "Phone 2 (optional)", placeholder: "", val: bizPhone2, set: setBizPhone2, icon: "phone" as const },
+          { label: "Company Address", placeholder: "Vill- & Post- Jani Buzurg, Meerut...", val: bizAddress, set: setBizAddress, icon: "map-pin" as const },
+          { label: "Email", placeholder: "info@maengineering.in", val: bizEmail, set: setBizEmail, icon: "mail" as const },
+        ].map(f => (
+          <View key={f.label} style={[styles.inputWrap, { borderColor: "#F2620735", backgroundColor: "transparent" }]}>
+            <Feather name={f.icon} size={15} color="#F26207" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.keyLabel, { color: "#F26207" }]}>{f.label}</Text>
+              <TextInput style={[styles.keyInput, { color: colors.foreground }]}
+                placeholder={f.placeholder} placeholderTextColor={`${colors.mutedForeground}70`}
+                value={f.val} onChangeText={f.set} autoCapitalize="none" autoCorrect={false} />
+            </View>
+            {f.val ? <Feather name="check-circle" size={15} color="#00FF41" /> : null}
+          </View>
+        ))}
+        <Text style={[styles.keyLabel, { color: "#F2620780", marginTop: 4 }]}>PAYMENT TERMS (PDF mein dikhenge)</Text>
+        {[
+          { val: bizPayTerm1, set: setBizPayTerm1, ph: "10% After team reach on site" },
+          { val: bizPayTerm2, set: setBizPayTerm2, ph: "40% after erection of crane" },
+          { val: bizPayTerm3, set: setBizPayTerm3, ph: "50% after completing of job work" },
+        ].map((t, i) => (
+          <View key={i} style={[styles.inputWrap, { borderColor: "#F2620735", backgroundColor: "transparent" }]}>
+            <Text style={{ color: "#F26207", fontFamily: "Inter_700Bold", fontSize: 12 }}>{i + 1}.</Text>
+            <TextInput style={[styles.textInput, { color: colors.foreground }]}
+              placeholder={t.ph} placeholderTextColor={`${colors.mutedForeground}70`}
+              value={t.val} onChangeText={t.set} />
+          </View>
+        ))}
       </View>
 
       {/* AI API Keys */}

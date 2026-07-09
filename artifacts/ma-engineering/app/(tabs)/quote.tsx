@@ -18,6 +18,7 @@ import { useColors } from "@/hooks/useColors";
 import { generateQuote } from "@/lib/gemini";
 import { saveQuote } from "@/lib/firebaseService";
 import { sendWhatsAppMessage, buildQuoteMessage, buildQuoteMessageLang } from "@/lib/whatsapp";
+import { shareQuotePdf, type QuoteLineItem } from "@/lib/quotePdf";
 import { useApp } from "@/context/AppContext";
 import { useTheme } from "@/context/ThemeContext";
 import SuccessBurst, { SuccessBurstHandle } from "@/components/SuccessBurst";
@@ -59,10 +60,62 @@ export default function QuoteScreen() {
   const [notes, setNotes] = useState("");
   const [tone, setTone] = useState<ToneTemplate>(TONE_TEMPLATES[0]);
 
+  const [site, setSite] = useState("");
+  const [lineItems, setLineItems] = useState<{ desc: string; qty: string; rate: string }[]>([
+    { desc: "", qty: "1", rate: "" },
+  ]);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+
   const [waModal, setWaModal] = useState(false);
   const [clientPhone, setClientPhone] = useState("");
   const [waSending, setWaSending] = useState(false);
   const burstRef = useRef<SuccessBurstHandle>(null);
+
+  function addLineItem() {
+    setLineItems(prev => [...prev, { desc: "", qty: "1", rate: "" }]);
+  }
+  function removeLineItem(idx: number) {
+    setLineItems(prev => prev.filter((_, i) => i !== idx));
+  }
+  function updateLineItem(idx: number, field: keyof typeof lineItems[0], value: string) {
+    setLineItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
+  }
+  function lineTotal(item: { qty: string; rate: string }) {
+    return (parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0);
+  }
+  function grandTotal() {
+    return lineItems.reduce((s, r) => s + lineTotal(r), 0);
+  }
+
+  async function handleGeneratePdf() {
+    if (!client.trim()) {
+      Alert.alert("Zaroori", "Client naam daalein.");
+      return;
+    }
+    const validItems = lineItems.filter(r => r.desc.trim() && parseFloat(r.rate) > 0);
+    if (validItems.length === 0) {
+      Alert.alert("Line Items", "Kam se kam ek line item ka description aur rate daalein.");
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setPdfGenerating(true);
+    try {
+      await shareQuotePdf({
+        clientName: client.trim(),
+        projectType: project,
+        site: site.trim(),
+        lineItems: validItems.map(r => ({
+          desc: r.desc.trim(),
+          qty: parseFloat(r.qty) || 1,
+          rate: parseFloat(r.rate) || 0,
+        } as QuoteLineItem)),
+      });
+    } catch (e: any) {
+      Alert.alert("❌ PDF Error", e.message?.slice(0, 120) ?? "PDF generate nahi hua. Dobara try karo.");
+    } finally {
+      setPdfGenerating(false);
+    }
+  }
 
   const baseCost = (parseFloat(tons) || 0) * 5500;
   const quotedCost = baseCost * 1.25;
@@ -168,7 +221,7 @@ export default function QuoteScreen() {
           />
         </View>
 
-        {/* Client Phone (saved with quote so WA send never guesses the number) */}
+        {/* Client Phone */}
         <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Feather name="phone" size={18} color={colors.neonBlue} />
           <TextInput
@@ -178,6 +231,18 @@ export default function QuoteScreen() {
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
+          />
+        </View>
+
+        {/* Site / Location */}
+        <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="map-pin" size={18} color={colors.neonBlue} />
+          <TextInput
+            style={[styles.textInput, { color: colors.foreground }]}
+            placeholder="Site / Location (PDF mein dikhega)"
+            placeholderTextColor={colors.mutedForeground}
+            value={site}
+            onChangeText={setSite}
           />
         </View>
 
@@ -283,6 +348,78 @@ export default function QuoteScreen() {
           />
         </View>
 
+        {/* ── PDF Line Items ── */}
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginTop: 4 }]}>📄 PDF QUOTE — LINE ITEMS</Text>
+        <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: -8 }}>
+          Har kaam ka description, qty aur rate bharein — PDF automatically generate hoga
+        </Text>
+        {lineItems.map((item, idx) => (
+          <View key={idx} style={[{ borderRadius: 12, borderWidth: 1, borderColor: `${colors.neonCyan}40`, backgroundColor: colors.card, padding: 12, gap: 8 }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: colors.neonCyan, letterSpacing: 1 }}>ITEM {idx + 1}</Text>
+              {lineItems.length > 1 && (
+                <TouchableOpacity onPress={() => removeLineItem(idx)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="x" size={16} color="#FF4444" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <TextInput
+              style={[styles.textInput, { color: colors.foreground, backgroundColor: `${colors.neonCyan}08`, borderRadius: 8, padding: 10, minHeight: 36 }]}
+              placeholder="Description of Work (e.g. Erection & Commissioning of 10Tx13m EOT)"
+              placeholderTextColor={colors.mutedForeground}
+              value={item.desc}
+              onChangeText={v => updateLineItem(idx, "desc", v)}
+              multiline
+            />
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <View style={[styles.inputWrap, { flex: 1, backgroundColor: `${colors.neonCyan}08`, borderColor: `${colors.neonCyan}30`, padding: 10 }]}>
+                <Text style={{ fontSize: 9, color: colors.neonCyan, fontFamily: "Inter_700Bold" }}>QTY</Text>
+                <TextInput
+                  style={[styles.textInput, { color: colors.foreground, fontSize: 13 }]}
+                  placeholder="1" placeholderTextColor={colors.mutedForeground}
+                  value={item.qty} onChangeText={v => updateLineItem(idx, "qty", v)}
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={[styles.inputWrap, { flex: 2, backgroundColor: `${colors.neonCyan}08`, borderColor: `${colors.neonCyan}30`, padding: 10 }]}>
+                <Text style={{ fontSize: 9, color: colors.neonCyan, fontFamily: "Inter_700Bold" }}>₹ RATE</Text>
+                <TextInput
+                  style={[styles.textInput, { color: colors.foreground, fontSize: 13 }]}
+                  placeholder="0" placeholderTextColor={colors.mutedForeground}
+                  value={item.rate} onChangeText={v => updateLineItem(idx, "rate", v)}
+                  keyboardType="numeric"
+                />
+              </View>
+              {(parseFloat(item.rate) > 0) && (
+                <View style={[styles.inputWrap, { flex: 2, backgroundColor: `${colors.neonCyan}15`, borderColor: `${colors.neonCyan}50`, padding: 10 }]}>
+                  <Text style={{ fontSize: 9, color: colors.neonCyan, fontFamily: "Inter_700Bold" }}>AMT</Text>
+                  <Text style={{ flex: 1, color: colors.neonCyan, fontFamily: "Inter_700Bold", fontSize: 12 }}>
+                    ₹{lineTotal(item).toLocaleString("en-IN")}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        ))}
+
+        {/* Add item + grand total row */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <TouchableOpacity
+            style={[styles.chip, { borderColor: colors.neonCyan, flex: 1, justifyContent: "center" }]}
+            onPress={() => { Haptics.selectionAsync(); addLineItem(); }}
+          >
+            <Feather name="plus" size={13} color={colors.neonCyan} />
+            <Text style={[styles.chipText, { color: colors.neonCyan }]}>Item Jodo</Text>
+          </TouchableOpacity>
+          {grandTotal() > 0 && (
+            <View style={[styles.chip, { borderColor: `${colors.neonCyan}60`, backgroundColor: `${colors.neonCyan}15`, paddingHorizontal: 16 }]}>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: colors.neonCyan }}>
+                Total: ₹{grandTotal().toLocaleString("en-IN")}
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* Cost Preview */}
         {!!tons && parseFloat(tons) > 0 && (
           <View style={[styles.costCard, { backgroundColor: colors.card, borderColor: colors.neonCyan }]}>
@@ -302,7 +439,7 @@ export default function QuoteScreen() {
           </View>
         )}
 
-        {/* Generate Button */}
+        {/* Generate AI Quote Button */}
         <TouchableOpacity
           style={[styles.btn, { backgroundColor: loading ? `${colors.neonBlue}80` : colors.neonBlue }]}
           onPress={generate}
@@ -314,6 +451,21 @@ export default function QuoteScreen() {
             : <Feather name="zap" size={18} color="#fff" />}
           <Text style={styles.btnText}>
             {loading ? "Lily generating..." : "GENERATE QUOTE WITH LILY"}
+          </Text>
+        </TouchableOpacity>
+
+        {/* PDF Quote Button (Section F) */}
+        <TouchableOpacity
+          style={[styles.btn, { backgroundColor: pdfGenerating ? "#F2620780" : "#F26207" }]}
+          onPress={handleGeneratePdf}
+          disabled={pdfGenerating}
+          activeOpacity={0.85}
+        >
+          {pdfGenerating
+            ? <ActivityIndicator color="#fff" size="small" />
+            : <Feather name="file-text" size={18} color="#fff" />}
+          <Text style={styles.btnText}>
+            {pdfGenerating ? "PDF ban raha hai..." : "GENERATE PDF QUOTE"}
           </Text>
         </TouchableOpacity>
 
