@@ -151,6 +151,22 @@ function isFirstContactAllowed(phone: string): boolean {
   return true;
 }
 
+// ── Proactive outbound send (for cron / auto-lead-contact) ───────────────────
+// Sends a text message to any phone number via the connected Baileys socket.
+// Returns false if socket is not connected.
+export async function sendTextMessage(phone: string, text: string): Promise<boolean> {
+  if (!state.sock || state.status !== "connected") return false;
+  try {
+    const jid = phone.includes("@") ? phone : `${phone.replace(/\D/g, "")}@s.whatsapp.net`;
+    await state.sock.sendMessage(jid, { text });
+    logger.info({ phone, preview: text.slice(0, 60) }, "Proactive message sent");
+    return true;
+  } catch (err: any) {
+    logger.error({ err: err.message, phone }, "Proactive sendTextMessage failed");
+    return false;
+  }
+}
+
 let initInProgress = false;
 
 export async function initWAClient(): Promise<void> {

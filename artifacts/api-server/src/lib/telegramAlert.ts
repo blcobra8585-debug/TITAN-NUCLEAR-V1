@@ -26,6 +26,70 @@ function getISTTime(): string {
   }
 }
 
+// ── Reusable raw send (internal) ──────────────────────────────────────────────
+async function tgSend(text: string): Promise<void> {
+  if (!BOT_TOKEN || !CHAT_ID) return;
+  try {
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    const resp  = await fetch(`${TG_API}/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST", signal: ctrl.signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: CHAT_ID, text, parse_mode: "MarkdownV2" }),
+    });
+    clearTimeout(timer);
+    if (!resp.ok) {
+      const err = await resp.text().catch(() => "");
+      logger.warn({ status: resp.status, err: err.slice(0, 120) }, "Telegram send API error");
+    }
+  } catch (err) {
+    logger.warn({ err }, "Telegram send failed");
+  }
+}
+
+// ── New Lead Alert ────────────────────────────────────────────────────────────
+export async function sendNewLeadAlert(lead: {
+  name: string; phone: string; location?: string; product?: string; message: string; source: string;
+}): Promise<void> {
+  if (!BOT_TOKEN || !CHAT_ID) return;
+  const e = escapeMd;
+  const text =
+    `🆕 *NAYA LEAD — ${e(lead.source)}*\n\n` +
+    `👤 *${e(lead.name)}*\n` +
+    `📱 \`${e(lead.phone)}\`\n` +
+    (lead.location ? `📍 ${e(lead.location)}\n` : "") +
+    (lead.product  ? `🏗️ ${e(lead.product)}\n`  : "") +
+    `\n💬 _${e(lead.message.slice(0, 200))}_\n\n` +
+    `🕐 ${e(getISTTime())}\n_— MA TITAN Auto\\-Detected_`;
+  await tgSend(text);
+}
+
+// ── Daily Digest ──────────────────────────────────────────────────────────────
+export async function sendDailyDigest(stats: {
+  totalLeads: number; newLeads: number; unreplied: number;
+  totalQuotes: number; approvedQuotes: number; pendingQuotes: number;
+  totalRevenue: number;
+}): Promise<void> {
+  if (!BOT_TOKEN || !CHAT_ID) return;
+  const e = escapeMd;
+  const rev = stats.totalRevenue >= 10000000
+    ? `₹${(stats.totalRevenue / 10000000).toFixed(1)}Cr`
+    : stats.totalRevenue >= 100000
+      ? `₹${(stats.totalRevenue / 100000).toFixed(1)}L`
+      : `₹${(stats.totalRevenue / 1000).toFixed(0)}K`;
+  const text =
+    `📊 *MA TITAN — DAILY DIGEST*\n` +
+    `_${e(getISTTime())}_\n\n` +
+    `📥 *Leads*\n` +
+    `  Total: *${stats.totalLeads}* \\| Aaj naye: *${stats.newLeads}* \\| Unreplied: *${stats.unreplied}*\n\n` +
+    `📋 *Quotes*\n` +
+    `  Total: *${stats.totalQuotes}* \\| ✅ Approved: *${stats.approvedQuotes}* \\| ⏳ Pending: *${stats.pendingQuotes}*\n\n` +
+    `💰 *Pipeline Value*\n` +
+    `  ${e(rev)}\n\n` +
+    `_Subah 9 baje ka update — MA TITAN_`;
+  await tgSend(text);
+}
+
 export async function sendTelegramAlert(
   title: string,
   details: string,

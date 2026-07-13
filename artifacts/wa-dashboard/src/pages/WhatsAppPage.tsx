@@ -36,6 +36,7 @@ export default function WhatsAppPage() {
   const [broadcastTargets, setBroadcastTargets] = useState<string[]>([]);
   const [broadcasting, setBroadcasting] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [apiLeads, setApiLeads] = useState<{ id:string; name:string; phone:string; replied:boolean }[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
   // Bug fix: broadcastSend() had no cancellation mechanism — navigating away
   // while a broadcast was running left the loop orphaned in memory, and starting
@@ -45,6 +46,14 @@ export default function WhatsAppPage() {
   const wabaId = localStorage.getItem("waba_id") ?? "";
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  // Fetch leads from API so broadcast can quick-select by segment
+  useEffect(() => {
+    fetch(`${BASE}/api/leads/list`)
+      .then(r => r.json())
+      .then(d => setApiLeads((d.leads ?? []).map((l: any) => ({ id: l.id, name: l.name, phone: l.phone, replied: l.replied }))))
+      .catch(() => {});
+  }, []);
 
   // Build contact list from Firestore wa_messages (grouped by phone, latest msg per contact)
   useEffect(() => {
@@ -318,18 +327,83 @@ export default function WhatsAppPage() {
         {tab === "broadcast" && (
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             <div className="text-xs font-bold text-[#00B4FF]">BROADCAST MESSAGE</div>
-            <div className="text-[11px] text-muted-foreground">Select contacts:</div>
-            {contacts.map(c => (
-              <label key={c.id} className="flex items-center gap-2 p-2 bg-card rounded-lg cursor-pointer">
-                <input type="checkbox" checked={broadcastTargets.includes(c.id)} onChange={e => setBroadcastTargets(t => e.target.checked ? [...t,c.id] : t.filter(x=>x!==c.id))} className="accent-[#25D366]"/>
-                <span className="text-xs text-foreground">{c.name}</span>
-                <span className="text-[10px] text-muted-foreground ml-auto">{c.phone}</span>
-              </label>
-            ))}
+
+            {/* Smart Segment Quick-Select */}
+            <div className="space-y-1.5">
+              <div className="text-[10px] text-muted-foreground font-semibold">⚡ QUICK SELECT BY SEGMENT</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  {
+                    label: `🔴 Unreplied Leads (${apiLeads.filter(l => !l.replied).length})`,
+                    action: () => {
+                      const phones = new Set(apiLeads.filter(l => !l.replied && l.phone).map(l => l.phone));
+                      setBroadcastTargets(contacts.filter(c => phones.has(c.phone)).map(c => c.id));
+                      setBroadcastMsg("Namaskar! Main Lily hoon — MA Engineering se. Aapki inquiry ke baare mein baat karni thi. Kya abhi thoda time hai? 🏗️");
+                    },
+                  },
+                  {
+                    label: `✅ Replied Leads (${apiLeads.filter(l => l.replied).length})`,
+                    action: () => {
+                      const phones = new Set(apiLeads.filter(l => l.replied && l.phone).map(l => l.phone));
+                      setBroadcastTargets(contacts.filter(c => phones.has(c.phone)).map(c => c.id));
+                      setBroadcastMsg("Hello! MA Engineering ki taraf se follow-up. Aapka project kab start hoga? Abhi booking pe special rate available hai. 😊");
+                    },
+                  },
+                  {
+                    label: `📋 Sab Contacts (${contacts.length})`,
+                    action: () => setBroadcastTargets(contacts.map(c => c.id)),
+                  },
+                  {
+                    label: "❌ Clear Selection",
+                    action: () => { setBroadcastTargets([]); setBroadcastMsg(""); },
+                  },
+                ].map(seg => (
+                  <button key={seg.label} onClick={seg.action}
+                    className="text-left px-2 py-1.5 rounded-lg bg-card border border-border text-[10px] text-muted-foreground hover:border-[#00B4FF] hover:text-[#00B4FF] transition-colors">
+                    {seg.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Message Templates for Broadcast */}
+            <div className="space-y-1.5">
+              <div className="text-[10px] text-muted-foreground font-semibold">📝 MESSAGE TEMPLATES</div>
+              <div className="grid grid-cols-1 gap-1">
+                {[
+                  { label: "💰 Rate Inquiry Reply", msg: "Namaskar! MA Engineering se — Crane/Structure ka exact quote chahiye toh: crane type, tonnage, span aur location batayein. Hum 15+ saal se kaam kar rahe hain, zero-accident record. 🏗️" },
+                  { label: "🔔 Follow-Up", msg: "Hello! MA Engineering ki taraf se reminder. Aapki quote request abhi bhi open hai. Koi sawaal ho toh batayein — special booking rate limited time ke liye available hai! ⚡" },
+                  { label: "🎉 New Offer", msg: "🏗️ MA Engineering — Special Offer!\n\nIs mahine cranes aur steel structures pe priority delivery available hai. Early booking pe best rates.\n\nCall/WA: +917895643069 — Suhan sir" },
+                  { label: "📞 Callback Request", msg: "Namaskar! Main Lily hoon — MA Engineering se. Kya aap kal 10am-6pm ke beech ek quick call ke liye available hain? Aapki requirement ke baare mein discuss karna tha. 🙏" },
+                ].map(t => (
+                  <button key={t.label} onClick={() => setBroadcastMsg(t.msg)}
+                    className="text-left px-2 py-1.5 rounded-lg bg-card border border-border text-[10px] text-muted-foreground hover:border-[#25D366] hover:text-[#25D366] transition-colors">
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Manual contact selection */}
+            <div className="text-[10px] text-muted-foreground font-semibold">☑️ CONTACTS ({broadcastTargets.length}/{contacts.length} selected)</div>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {contacts.map(c => {
+                const lead = apiLeads.find(l => l.phone === c.phone);
+                return (
+                  <label key={c.id} className="flex items-center gap-2 p-2 bg-card rounded-lg cursor-pointer hover:bg-card/80">
+                    <input type="checkbox" checked={broadcastTargets.includes(c.id)} onChange={e => setBroadcastTargets(t => e.target.checked ? [...t,c.id] : t.filter(x=>x!==c.id))} className="accent-[#25D366]"/>
+                    <span className="text-xs text-foreground flex-1 truncate">{c.name}</span>
+                    {lead && <span className={`text-[9px] px-1 rounded font-bold ${lead.replied ? "text-[#25D366] bg-[#25D366]/10" : "text-[#F59E0B] bg-[#F59E0B]/10"}`}>{lead.replied ? "replied" : "unreplied"}</span>}
+                    <span className="text-[10px] text-muted-foreground shrink-0">{c.phone.slice(-4)}</span>
+                  </label>
+                );
+              })}
+            </div>
+
             <textarea className="w-full bg-card border border-border rounded-lg p-2 text-xs text-foreground placeholder:text-muted-foreground outline-none resize-none" rows={4} placeholder="Broadcast message..." value={broadcastMsg} onChange={e => setBroadcastMsg(e.target.value)}/>
             {broadcasting
               ? <button onClick={cancelBroadcast} className="w-full py-2 rounded-lg font-bold text-xs text-white transition-all bg-red-500">⛔ Broadcast Roko</button>
-              : <button onClick={broadcastSend} disabled={broadcastTargets.length === 0} className="w-full py-2 rounded-lg font-bold text-xs text-black transition-all" style={{ background: "#25D366" }}>Send to {broadcastTargets.length} contacts</button>
+              : <button onClick={broadcastSend} disabled={broadcastTargets.length === 0 || !broadcastMsg.trim()} className="w-full py-2 rounded-lg font-bold text-xs text-black transition-all disabled:opacity-40" style={{ background: "#25D366" }}>📢 Send to {broadcastTargets.length} contacts</button>
             }
           </div>
         )}

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid } from "recharts";
-import { TrendingUp, TrendingDown, DollarSign, FileText, Users, Zap, Target, Award, Activity } from "lucide-react";
+import { TrendingUp, TrendingDown, IndianRupee, FileText, Users, Zap, Target, Award, Activity, Loader2 } from "lucide-react";
 
 const COLORS = ["#00B4FF","#25D366","#7B2FFF","#F59E0B","#EF4444","#00FFD1"];
 
@@ -26,16 +26,29 @@ function StatCard({ label, value, sub, color, icon: Icon, trend }: { label:strin
   );
 }
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 export default function AnalyticsPage() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<"week"|"month"|"year">("month");
+  const [leadStats, setLeadStats] = useState<{ totalLeads:number; newLeads:number; unreplied:number } | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, "quotes"), orderBy("createdAt","desc"));
     const unsub = onSnapshot(q, snap => {
       setQuotes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Quote)));
-    }, () => {});
+      setLoading(false);
+    }, () => { setLoading(false); });
     return () => unsub();
+  }, []);
+
+  // Fetch lead stats from API for the pipeline section
+  useEffect(() => {
+    fetch(`${BASE}/api/leads/stats`)
+      .then(r => r.json())
+      .then(d => setLeadStats({ totalLeads: d.total ?? 0, newLeads: d.today ?? 0, unreplied: d.unreplied ?? 0 }))
+      .catch(() => {});
   }, []);
 
   const approved = quotes.filter(q => q.status === "approved");
@@ -79,15 +92,43 @@ export default function AnalyticsPage() {
     );
   };
 
+  if (loading) return (
+    <div className="h-full flex items-center justify-center">
+      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+        <Loader2 size={24} className="animate-spin text-[#00B4FF]"/>
+        <span className="text-xs">Analytics load ho rahi hai...</span>
+      </div>
+    </div>
+  );
+
   return (
     <div className="h-full overflow-y-auto p-3 space-y-4">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-2">
-        <StatCard label="Total Revenue" value={fmt(totalRev)} sub="+12% this month" color="#25D366" icon={DollarSign} trend="+12%"/>
-        <StatCard label="Total Quotes" value={quotes.length.toString()} sub={`${approved.length} approved`} color="#00B4FF" icon={FileText} trend="+3"/>
+        <StatCard label="Total Revenue" value={fmt(totalRev)} sub="approved quotes" color="#25D366" icon={IndianRupee}/>
+        <StatCard label="Total Quotes" value={quotes.length.toString()} sub={`${approved.length} approved`} color="#00B4FF" icon={FileText} trend={`+${approved.length}`}/>
         <StatCard label="Win Rate" value={`${winRate.toFixed(0)}%`} sub="vs industry 45%" color="#00FFD1" icon={Target} trend={winRate > 45 ? "+good" : "-low"}/>
         <StatCard label="Avg Deal" value={fmt(avgDeal)} sub="per project" color="#7B2FFF" icon={Award}/>
       </div>
+
+      {/* Lead Pipeline from API */}
+      {leadStats && (
+        <div className="bg-card border border-border rounded-xl p-3">
+          <div className="text-xs font-bold text-[#F59E0B] mb-3 flex items-center gap-1.5"><Users size={12}/> LEAD PIPELINE (IndiaMART)</div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Total", value: leadStats.totalLeads, color: "#00B4FF" },
+              { label: "Aaj", value: leadStats.newLeads, color: "#25D366" },
+              { label: "Unreplied", value: leadStats.unreplied, color: leadStats.unreplied > 0 ? "#EF4444" : "#25D366" },
+            ].map(s => (
+              <div key={s.label} className="text-center p-2 rounded-lg bg-background">
+                <div className="text-base font-bold" style={{ color: s.color }}>{s.value}</div>
+                <div className="text-[10px] text-muted-foreground">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Revenue Chart */}
       <div className="bg-card border border-border rounded-xl p-3">

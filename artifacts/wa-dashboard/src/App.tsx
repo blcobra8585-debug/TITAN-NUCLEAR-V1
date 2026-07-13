@@ -18,9 +18,12 @@ const TABS = [
   { id: "settings", label: "Settings", Icon: Settings,      color: "#FF6B6B" },
 ];
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 export default function App() {
   const [tab, setTab] = useState("whatsapp");
   const [online, setOnline] = useState(navigator.onLine);
+  const [unreplied, setUnreplied] = useState(0);
 
   useEffect(() => {
     const on = () => setOnline(true);
@@ -28,6 +31,19 @@ export default function App() {
     window.addEventListener("online", on);
     window.addEventListener("offline", off);
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+
+  // Poll lead stats every 2 min to show unreplied badge on Bot tab
+  useEffect(() => {
+    function fetchLeadStats() {
+      fetch(`${BASE}/api/leads/stats`)
+        .then(r => r.json())
+        .then(d => setUnreplied(d.unreplied ?? 0))
+        .catch(() => {});
+    }
+    fetchLeadStats();
+    const t = setInterval(fetchLeadStats, 2 * 60 * 1000);
+    return () => clearInterval(t);
   }, []);
 
   return (
@@ -80,6 +96,12 @@ export default function App() {
                 <div className="relative">
                   <Icon size={20} />
                   {active && <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: color }} />}
+                  {/* Unreplied leads badge on Bot tab */}
+                  {id === "bot" && unreplied > 0 && (
+                    <div className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full bg-red-500 flex items-center justify-center text-[9px] font-bold text-white px-0.5">
+                      {unreplied > 99 ? "99+" : unreplied}
+                    </div>
+                  )}
                 </div>
                 <span className="text-[10px] font-semibold">{label}</span>
               </button>
