@@ -81,7 +81,7 @@ async function handleIncomingMessage(msg: any) {
 
     // Mark as known only after passing the rate-limit gate, so subsequent
     // messages from this contact are not throttled again.
-    knownPhones.add(phone);
+    addKnownPhone(phone);
 
     // Fix(A): Randomized 2-6 second delay before every reply — a consistent
     // instant-reply pattern is one of WhatsApp's strongest spam signals.
@@ -121,7 +121,21 @@ const FIRST_CONTACT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const FIRST_CONTACT_MAX = 5; // max new numbers per hour
 
 // Track known phones (anyone we've seen a message FROM is not "first contact")
+// Bug fix: Set was unbounded — one entry per unique caller, never evicted.
+// Cap at 50 000 entries; when full, wipe the oldest half so memory stays bounded.
 const knownPhones = new Set<string>();
+const KNOWN_PHONES_MAX = 50_000;
+function addKnownPhone(phone: string) {
+  if (knownPhones.size >= KNOWN_PHONES_MAX) {
+    // JS Sets iterate in insertion order — delete the first half (oldest)
+    let i = 0;
+    for (const p of knownPhones) {
+      knownPhones.delete(p);
+      if (++i >= KNOWN_PHONES_MAX / 2) break;
+    }
+  }
+  knownPhones.add(phone);
+}
 
 function isFirstContactAllowed(phone: string): boolean {
   if (knownPhones.has(phone)) return true; // returning contact, no restriction
@@ -208,9 +222,20 @@ export async function initWAClient(): Promise<void> {
     });
 
     sock.ev.on("messages.upsert", async ({ messages: msgs, type }) => {
+      // Bug fix: state.messages Map keys (JIDs) were never pruned — one entry
+      // per unique contact, growing forever.  Cap total tracked JIDs at 2 000.
+      const MESSAGE_JID_CAP = 2_000;
       for (const msg of msgs) {
         const jid = msg.key.remoteJid ?? "";
-        if (!state.messages[jid]) state.messages[jid] = [];
+        if (!state.messages[jid]) {
+          // Evict oldest JID when at cap (Object.keys preserves insertion order
+          // in V8 for string keys, giving us a rough LRU eviction)
+          const keys = Object.keys(state.messages);
+          if (keys.length >= MESSAGE_JID_CAP) {
+            delete state.messages[keys[0]!];
+          }
+          state.messages[jid] = [];
+        }
         state.messages[jid].unshift(msg);
         if (state.messages[jid].length > 100) state.messages[jid].pop();
 

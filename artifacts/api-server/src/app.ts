@@ -26,7 +26,22 @@ app.use(
     },
   }),
 );
-app.use(cors());
+// Bug fix: cors() with no options = allow ALL origins (wildcard *).
+// Restrict to localhost (dev) and Replit preview/production domains.
+// Requests with no Origin header (mobile apps, curl) are always allowed.
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // mobile / server-to-server
+    const allowed =
+      origin.startsWith("http://localhost") ||
+      origin.startsWith("http://127.0.0.1") ||
+      origin.endsWith(".replit.dev") ||
+      origin.endsWith(".replit.app") ||
+      origin.endsWith(".repl.co");
+    callback(null, allowed);
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

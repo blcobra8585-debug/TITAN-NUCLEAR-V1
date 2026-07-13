@@ -37,9 +37,19 @@ router.get("/indiamart", async (req: Request, res: Response) => {
     // is deployed. Building the string from local server time (e.g. UTC on
     // Render/Replit/Railway) silently shifts the 24h window and can miss leads.
     const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    // Bug fix: time was hardcoded "00:00:00", so both start and end were
+    // midnight IST — the window was always "yesterday midnight → today midnight"
+    // regardless of when the fetch runs, silently dropping today's leads.
+    // Fixed: include the actual H:M:S so the window is a real 24-hour slide.
     const fmt = (d: Date) => {
       const ist = new Date(d.getTime() + IST_OFFSET_MS);
-      return `${ist.getUTCDate().toString().padStart(2,"0")}-${(ist.getUTCMonth()+1).toString().padStart(2,"0")}-${ist.getUTCFullYear()} 00:00:00`;
+      const dd = ist.getUTCDate().toString().padStart(2, "0");
+      const mm = (ist.getUTCMonth() + 1).toString().padStart(2, "0");
+      const yyyy = ist.getUTCFullYear();
+      const hh = ist.getUTCHours().toString().padStart(2, "0");
+      const min = ist.getUTCMinutes().toString().padStart(2, "0");
+      const ss = ist.getUTCSeconds().toString().padStart(2, "0");
+      return `${dd}-${mm}-${yyyy} ${hh}:${min}:${ss}`;
     };
 
     const url = `https://mapi.indiamart.com/wservce/crm/crmListing/v2/?glusr_crm_key=${key}&glusr_crm_glid=${glid}&glusr_crm_start_time=${encodeURIComponent(fmt(start))}&glusr_crm_end_time=${encodeURIComponent(fmt(now))}`;
@@ -72,9 +82,13 @@ router.get("/indiamart", async (req: Request, res: Response) => {
     }));
 
     // Add new leads to store
+    // Bug fix: leadsStore.find() inside a loop = O(N²) as the store grows.
+    // Build a Set of existing IDs for O(1) lookups instead.
+    const existingIds = new Set(leadsStore.map(l => l.id));
     for (const lead of newLeads) {
-      if (!leadsStore.find(l => l.id === lead.id)) {
+      if (!existingIds.has(lead.id)) {
         leadsStore.unshift(lead);
+        existingIds.add(lead.id); // guard against duplicates within newLeads too
       }
     }
     logger.info({ count: newLeads.length }, "IndiaMART leads fetched");

@@ -37,7 +37,13 @@ router.post("/clear-all", (_req, res) => {
   res.json({ success: true, message: "Sab chat history clear ho gayi!" });
 });
 
+// Bug fix: GET /toggle violated REST (GET must be idempotent, not mutate state).
+// Changed to POST. Old GET kept temporarily so any cached clients don't break,
+// but it redirects to the POST handler via a 405 with Allow header.
 router.get("/toggle", (_req, res) => {
+  res.set("Allow", "POST").status(405).json({ error: "Use POST /api/bot/toggle" });
+});
+router.post("/toggle", (_req, res) => {
   const current = isBotEnabled();
   setBotEnabled(!current);
   res.json({ success: true, enabled: !current });

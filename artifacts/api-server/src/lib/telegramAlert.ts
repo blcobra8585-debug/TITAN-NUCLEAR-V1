@@ -6,11 +6,11 @@
  */
 import { logger } from "./logger";
 
-const FALLBACK_BOT_TOKEN = "7507508870:AAEo4AKPOgx1DaJtG0YEW8Za9Eo-hiebd9Q";
-const FALLBACK_CHAT_ID   = "5961723105";
-
-const BOT_TOKEN = process.env["TELEGRAM_BOT_TOKEN"] || FALLBACK_BOT_TOKEN;
-const CHAT_ID   = process.env["TELEGRAM_CHAT_ID"]   || FALLBACK_CHAT_ID;
+// Bug fix: Hardcoded fallback tokens removed — they were committed to a public
+// GitHub repo, letting anyone send/read messages via this bot.
+// Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in Replit Secrets.
+const BOT_TOKEN = process.env["TELEGRAM_BOT_TOKEN"] ?? "";
+const CHAT_ID   = process.env["TELEGRAM_CHAT_ID"] ?? "";
 const TG_API    = "https://api.telegram.org";
 const TIMEOUT_MS = 8_000;
 
@@ -31,6 +31,11 @@ export async function sendTelegramAlert(
   details: string,
   context?: string,
 ): Promise<void> {
+  // If tokens not configured, skip silently — don't crash callers
+  if (!BOT_TOKEN || !CHAT_ID) {
+    logger.warn({ title }, "Telegram alert skipped — TELEGRAM_BOT_TOKEN/CHAT_ID not set");
+    return;
+  }
   try {
     const safeTitle   = escapeMd(title);
     const safeDetails = escapeMd(details.slice(0, 800));

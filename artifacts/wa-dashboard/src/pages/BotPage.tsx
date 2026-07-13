@@ -45,10 +45,30 @@ export default function BotPage() {
   }, []);
 
   useEffect(() => {
+    // Bug fix: setInterval with no error backoff — if the API server is down
+    // this fires 288 times/day per tab, spamming failed requests indefinitely.
+    // Replaced with a self-rescheduling poll that backs off (5s → 10s → 20s →
+    // max 60s) on consecutive errors and resets to 5s on success.
+    let timer: ReturnType<typeof setTimeout>;
+    let consecutiveErrors = 0;
+    const MIN_INTERVAL = 5_000;
+    const MAX_INTERVAL = 60_000;
+
+    async function poll() {
+      try {
+        await Promise.all([fetchStats(), fetchReplies()]);
+        consecutiveErrors = 0;
+      } catch {
+        consecutiveErrors++;
+      }
+      const delay = Math.min(MIN_INTERVAL * Math.pow(2, consecutiveErrors), MAX_INTERVAL);
+      timer = setTimeout(poll, delay);
+    }
+
     fetchStats();
     fetchReplies();
-    const t = setInterval(() => { fetchStats(); fetchReplies(); }, 5000);
-    return () => clearInterval(t);
+    timer = setTimeout(poll, MIN_INTERVAL);
+    return () => clearTimeout(timer);
   }, [fetchStats, fetchReplies]);
 
   async function toggleBot() {

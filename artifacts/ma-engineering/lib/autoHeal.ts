@@ -29,7 +29,9 @@ export interface ErrorReport {
   rnVersion?: string;
 }
 
-const APP_VERSION = "3.2.0";
+// Bug fix: APP_VERSION was hardcoded "3.2.0" — error reports always showed wrong
+// version even after APK builds bumped app.json. Read from expo-constants instead.
+const APP_VERSION: string = Constants.expoConfig?.version ?? (Constants as any).manifest?.version ?? "unknown";
 const MAX_RETRY = 3;
 const RETRY_DELAY_MS = 2000;
 const MAX_QUEUE_LENGTH = 50;
@@ -211,12 +213,15 @@ export async function reportCrash(error: Error, context: string): Promise<void> 
 // Network check
 // ---------------------------------------------------------------------------
 export async function isOnline(): Promise<boolean> {
+  // Bug fix: google.com is blocked in some corporate networks and regions
+  // (e.g. China). Use Google's standard connectivity check endpoint instead —
+  // it returns 204 and is designed for exactly this purpose.
   try {
-    const res = await fetch("https://www.google.com", {
+    const res = await fetch("https://connectivitycheck.gstatic.com/generate_204", {
       method: "HEAD",
       signal: timeoutSignal(5000),
     });
-    return res.ok;
+    return res.status === 204 || res.ok;
   } catch { return false; }
 }
 

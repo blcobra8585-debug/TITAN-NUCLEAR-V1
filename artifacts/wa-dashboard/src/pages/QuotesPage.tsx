@@ -20,6 +20,10 @@ export default function QuotesPage() {
   const [showNew, setShowNew] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quote|null>(null);
   const [generating, setGenerating] = useState(false);
+  // Bug fix: updateStatus and deleteQuote had no loading guard — rapid double-
+  // clicks fired duplicate Firestore writes (two "approved" writes, two deletes).
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [client, setClient] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [project, setProject] = useState(PROJECTS[0]);
@@ -68,20 +72,28 @@ export default function QuotesPage() {
   }
 
   async function updateStatus(id: string, status: string) {
+    if (updatingId === id) return; // guard double-click
+    setUpdatingId(id);
     try {
       await updateDoc(doc(db, "quotes", id), { status });
       toast.success(`Status update: ${status}`);
     } catch {
       toast.error("Status update nahi hua.");
+    } finally {
+      setUpdatingId(null);
     }
   }
 
   async function deleteQuote(id: string) {
+    if (deletingId === id) return; // guard double-click
+    setDeletingId(id);
     try {
       await deleteDoc(doc(db, "quotes", id));
       toast.success("Quote delete ho gaya");
     } catch {
       toast.error("Delete nahi hua.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -90,9 +102,16 @@ export default function QuotesPage() {
     if (!q.clientPhone) { toast.error("Is quote mein client ka phone number nahi hai"); return; }
     const msg = `🏗️ *MA ENGINEERING — Quote*\n\nClient: *${q.clientName}*\nProject: *${q.projectType}*\n\n${q.quoteText}\n\nQuote Value: *₹${(q.quotedAmount/100000).toFixed(2)}L*\n\n✅ *MA Engineering* | 15+ Years | Zero-Accident Record | Pan-India`;
     toast.loading("Bhej raha hoon...");
-    const r = await sendWAMessage(q.clientPhone, msg, waToken, wabaId);
-    toast.dismiss();
-    if (r.success) toast.success("WhatsApp pe bhej diya!"); else toast.error(r.error);
+    // Bug fix: no try/catch — if sendWAMessage threw, toast.loading stayed visible
+    // forever (toast.dismiss() was never reached).
+    try {
+      const r = await sendWAMessage(q.clientPhone, msg, waToken, wabaId);
+      toast.dismiss();
+      if (r.success) toast.success("WhatsApp pe bhej diya!"); else toast.error(r.error ?? "Send failed");
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error(err?.message ?? "WhatsApp send nahi hua");
+    }
   }
 
   function generateInvoice(q: Quote) {
@@ -208,11 +227,11 @@ export default function QuotesPage() {
             <div className="text-[11px] text-muted-foreground line-clamp-2">{q.quoteText}</div>
             <div className="flex gap-1.5">
               <button onClick={() => setSelectedQuote(selectedQuote?.id === q.id ? null : q)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-muted-foreground hover:text-[#00B4FF]"><Eye size={10}/> View</button>
-              {q.status !== "approved" && <button onClick={() => updateStatus(q.id,"approved")} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-[#25D366]"><Check size={10}/> Approve</button>}
-              {q.status !== "rejected" && <button onClick={() => updateStatus(q.id,"rejected")} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-destructive"><X size={10}/> Reject</button>}
+              {q.status !== "approved" && <button onClick={() => updateStatus(q.id,"approved")} disabled={updatingId === q.id} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-[#25D366] disabled:opacity-50"><Check size={10}/> {updatingId === q.id ? "..." : "Approve"}</button>}
+              {q.status !== "rejected" && <button onClick={() => updateStatus(q.id,"rejected")} disabled={updatingId === q.id} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-destructive disabled:opacity-50"><X size={10}/> {updatingId === q.id ? "..." : "Reject"}</button>}
               {q.status === "approved" && <button onClick={() => generateInvoice(q)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-[#00FFD1]"><Download size={10}/> Invoice</button>}
               <button onClick={() => sendViaWA(q)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-black ml-auto" style={{ background: "#25D366" }}><Send size={10}/> WA</button>
-              <button onClick={() => deleteQuote(q.id)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-destructive"><Trash2 size={10}/></button>
+              <button onClick={() => deleteQuote(q.id)} disabled={deletingId === q.id} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-destructive disabled:opacity-50"><Trash2 size={10}/>{deletingId === q.id ? " ..." : ""}</button>
             </div>
           </div>
         ))}

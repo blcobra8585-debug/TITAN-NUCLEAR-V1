@@ -37,6 +37,10 @@ export default function WhatsAppPage() {
   const [broadcasting, setBroadcasting] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  // Bug fix: broadcastSend() had no cancellation mechanism — navigating away
+  // while a broadcast was running left the loop orphaned in memory, and starting
+  // a second broadcast created two concurrent loops sending to the same contacts.
+  const broadcastAbortRef = useRef(false);
   const waToken = localStorage.getItem("wa_token") ?? "";
   const wabaId = localStorage.getItem("waba_id") ?? "";
 
@@ -195,20 +199,33 @@ export default function WhatsAppPage() {
 
   async function broadcastSend() {
     if (!broadcastMsg.trim() || broadcastTargets.length === 0) { toast.error("Message aur contacts select karo"); return; }
+    broadcastAbortRef.current = false;
     setBroadcasting(true);
     let ok = 0, fail = 0;
     for (const id of broadcastTargets) {
+      // Bug fix: check abort flag before each send so navigating away or clicking
+      // Stop immediately halts the loop without waiting for all sends to complete.
+      if (broadcastAbortRef.current) break;
       const c = contacts.find(x => x.id === id);
       if (!c) continue;
       try {
         const r = await sendWAMessage(c.phone, broadcastMsg, waToken, wabaId);
         if (r.success) ok++; else fail++;
       } catch { fail++; }
-      await new Promise(res => setTimeout(res, 1000));
+      if (!broadcastAbortRef.current) {
+        await new Promise(res => setTimeout(res, 1000));
+      }
     }
     setBroadcasting(false);
+    broadcastAbortRef.current = false;
     toast.success(`${ok} bheja, ${fail} failed`);
     setBroadcastMsg(""); setBroadcastTargets([]);
+  }
+
+  function cancelBroadcast() {
+    broadcastAbortRef.current = true;
+    setBroadcasting(false);
+    toast.info("Broadcast roka gaya");
   }
 
   const filtered = contacts.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search));
@@ -310,9 +327,10 @@ export default function WhatsAppPage() {
               </label>
             ))}
             <textarea className="w-full bg-card border border-border rounded-lg p-2 text-xs text-foreground placeholder:text-muted-foreground outline-none resize-none" rows={4} placeholder="Broadcast message..." value={broadcastMsg} onChange={e => setBroadcastMsg(e.target.value)}/>
-            <button onClick={broadcastSend} disabled={broadcasting} className="w-full py-2 rounded-lg font-bold text-xs text-black transition-all" style={{ background: broadcasting ? "#128C7E" : "#25D366" }}>
-              {broadcasting ? "Bhej raha hoon..." : `Send to ${broadcastTargets.length} contacts`}
-            </button>
+            {broadcasting
+              ? <button onClick={cancelBroadcast} className="w-full py-2 rounded-lg font-bold text-xs text-white transition-all bg-red-500">⛔ Broadcast Roko</button>
+              : <button onClick={broadcastSend} disabled={broadcastTargets.length === 0} className="w-full py-2 rounded-lg font-bold text-xs text-black transition-all" style={{ background: "#25D366" }}>Send to {broadcastTargets.length} contacts</button>
+            }
           </div>
         )}
       </div>
