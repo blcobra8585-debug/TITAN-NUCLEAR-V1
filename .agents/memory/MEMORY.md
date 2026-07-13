@@ -1,0 +1,4 @@
+- [TITAN repo setup](titan-repo-setup.md) — cloned at /home/runner/workspace/titan-repo, push via GITHUB_ACCESS_TOKEN
+- [Auto-lead pipeline](auto-lead-pipeline.md) — IndiaMART→Telegram alert→Lily WA auto-reply, wired in app.ts + leads.ts
+- [Telegram alerts](telegram-alerts.md) — TELEGRAM_BOT_TOKEN/CHAT_ID must be set in Replit Secrets; no hardcoded fallbacks
+- [WA send pattern](wa-send-pattern.md) — dashboard uses Cloud API (waToken/wabaId); server bot uses Baileys sendTextMessage()
