@@ -46,6 +46,8 @@
       "expo-font",
       "expo-av",
       "expo-web-browser",
+      "expo-print",
+      "expo-sharing",
       [
         "expo-notifications",
         {

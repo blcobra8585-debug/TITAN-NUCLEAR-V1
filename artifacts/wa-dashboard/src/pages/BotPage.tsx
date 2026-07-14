@@ -135,7 +135,7 @@ export default function BotPage() {
           </div>
           <div>
             <div className="text-base font-bold gradient-text">Lily AI Bot</div>
-            <div className="text-[11px] text-muted-foreground">WhatsApp Auto-Reply System</div>
+            <div className="text-[11px] text-muted-foreground">WA Auto-Reply • Har Lead ka Jawab</div>
           </div>
         </div>
         <button onClick={fetchStats} className="p-2 rounded-lg hover:bg-card/60 text-muted-foreground">

@@ -4,14 +4,16 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import DiagnosticOverlay from "@/components/DiagnosticOverlay";
+import PinLockScreen from "@/components/PinLockScreen";
 import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { diagLog, diagStage, diagWarn } from "@/lib/diagnosticLog";
+import { hasPIN, setupAutoLock } from "@/lib/security";
 // NOTE: autoUpdate / autoLeadBot / recruitmentBot / autoHeal are NOT statically
 // imported here. A crash in any of those (or their import chains) used to prevent
 // _layout.tsx from loading entirely, keeping the splash screen up forever.
@@ -100,6 +102,18 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
+  // PIN lock state — checked once on mount, re-triggered by setupAutoLock on resume
+  const [pinLocked, setPinLocked] = useState(false);
+
+  useEffect(() => {
+    hasPIN().then(has => {
+      if (has) setPinLocked(true);
+    }).catch(() => {});
+    // Re-lock when app returns from background (15 min session timeout)
+    const unsubscribe = setupAutoLock(() => setPinLocked(true));
+    return unsubscribe;
+  }, []);
+
   // Fonts can hang forever on some Android release builds — force fallback at 4 s.
   const [fontsTimedOut, setFontsTimedOut] = React.useState(false);
   useEffect(() => {
@@ -141,10 +155,14 @@ export default function RootLayout() {
             <ThemeProvider>
               <AppProvider>
                 <AppInit />
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="(tabs)" />
-                </Stack>
+                {pinLocked ? (
+                  <PinLockScreen onUnlock={() => setPinLocked(false)} />
+                ) : (
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="(tabs)" />
+                  </Stack>
+                )}
                 {/* Diagnostic overlay — always on top */}
                 <DiagnosticOverlay />
               </AppProvider>

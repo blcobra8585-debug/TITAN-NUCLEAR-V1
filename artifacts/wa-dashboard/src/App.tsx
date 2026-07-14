@@ -18,6 +18,10 @@ const TABS = [
   { id: "settings", label: "Settings", Icon: Settings,      color: "#FF6B6B" },
 ];
 
+// Hinglish status helpers
+const STATUS_ONLINE  = "Online hai 🟢";
+const STATUS_OFFLINE = "Offline ho gaya 🔴";
+
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export default function App() {
@@ -57,13 +61,13 @@ export default function App() {
             </div>
             <div>
               <div className="text-sm font-bold gradient-text">MA TITAN</div>
-              <div className="text-[10px] text-muted-foreground">WhatsApp Business Hub</div>
+              <div className="text-[10px] text-muted-foreground">Aapka WA Command Center</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {online
-              ? <div className="flex items-center gap-1 text-[#25D366] text-xs"><Wifi size={12}/> Live</div>
-              : <div className="flex items-center gap-1 text-destructive text-xs"><WifiOff size={12}/> Offline</div>
+              ? <div className="flex items-center gap-1 text-[#25D366] text-xs"><Wifi size={12}/> {STATUS_ONLINE}</div>
+              : <div className="flex items-center gap-1 text-destructive text-xs"><WifiOff size={12}/> {STATUS_OFFLINE}</div>
             }
           </div>
         </header>

@@ -57,7 +57,6 @@ export default function ChatScreen() {
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [activeModel, setActiveModel] = useState<AIModel>("titan");
   const [availableModels, setAvailableModels] = useState<AIModelInfo[]>([]);
-  const [scanLine, setScanLine] = useState(0);
   const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -65,8 +64,6 @@ export default function ChatScreen() {
     AsyncStorage.getItem("titan_active_model").then(m => {
       if (m) setActiveModel(m as AIModel);
     });
-    const t = setInterval(() => setScanLine(p => (p + 1) % 100), 50);
-    return () => clearInterval(t);
   }, []);
 
   const activeModelInfo = ALL_AI_MODELS.find(m => m.id === activeModel) ?? ALL_AI_MODELS[0];

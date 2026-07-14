@@ -18,6 +18,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ReAnimated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/context/ThemeContext";
+import { useStrings } from "@/lib/strings";
 import { timeoutSignal } from "@/lib/timeout";
 import GlowOrb from "@/components/GlowOrb";
 import Tilt3DCard from "@/components/Tilt3DCard";
@@ -36,6 +38,8 @@ export default function DashboardScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { language } = useTheme();
+  const s = useStrings(language);
   const { titanMode, setTitanMode, totalRevenue, refreshRevenue, serverUrl } = useApp();
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -109,7 +113,7 @@ export default function DashboardScreen() {
         <ReAnimated.View entering={FadeInDown.duration(500)} style={styles.row}>
           <View>
             <Text style={[styles.logo, { color: colors.neonBlue }]}>MA TITAN</Text>
-            <Text style={[styles.sub, { color: colors.mutedForeground }]}>MA Engineering • Admin</Text>
+            <Text style={[styles.sub, { color: colors.mutedForeground }]}>{s.dash_subtitle}</Text>
           </View>
           <TouchableOpacity
             style={[styles.iconBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
@@ -124,8 +128,8 @@ export default function DashboardScreen() {
           <Tilt3DCard style={[styles.titanCard, { backgroundColor: colors.card, borderColor: titanMode ? colors.neonBlue : colors.border, shadowColor: titanMode ? colors.neonBlue : "transparent" }]}>
             <Icon3D name="zap" size={24} bgSize={48} color={titanMode ? colors.neonBlue : colors.mutedForeground} glow={titanMode} />
             <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={[styles.cardTitle, { color: titanMode ? colors.neonBlue : colors.foreground }]}>TITAN MODE</Text>
-              <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>{titanMode ? "System Full Power pe hai" : "Tap karo activate karne ke liye"}</Text>
+              <Text style={[styles.cardTitle, { color: titanMode ? colors.neonBlue : colors.foreground }]}>{s.dash_titan_mode}</Text>
+              <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>{titanMode ? s.dash_titan_on : s.dash_titan_off}</Text>
             </View>
             <Switch value={titanMode} onValueChange={toggleTitan} trackColor={{ false: colors.border, true: `${colors.neonBlue}50` }} thumbColor={titanMode ? colors.neonBlue : "#555"} />
           </Tilt3DCard>
@@ -138,7 +142,7 @@ export default function DashboardScreen() {
             <Tilt3DCard style={[styles.revenueCard, { borderColor: colors.neonCyan, backgroundColor: colors.card }]}>
               <View style={[styles.row, { gap: 6 }]}>
                 <Icon3D name="trending-up" size={11} bgSize={22} color={colors.neonCyan} />
-                <Text style={[styles.miniLabel, { color: colors.neonCyan, letterSpacing: 1 }]}>REVENUE</Text>
+                <Text style={[styles.miniLabel, { color: colors.neonCyan, letterSpacing: 1 }]}>{s.dash_revenue}</Text>
               </View>
               {loading ? (
                 <ActivityIndicator color={colors.neonCyan} style={{ marginTop: 10 }} />
@@ -152,7 +156,7 @@ export default function DashboardScreen() {
                   <View key={i} style={[styles.trendBar, { height: h * 0.28, backgroundColor: `${colors.neonCyan}${i === 6 ? "" : "60"}` }]} />
                 ))}
               </View>
-              <Text style={[styles.miniLabel, { color: colors.mutedForeground }]}>This Quarter</Text>
+              <Text style={[styles.miniLabel, { color: colors.mutedForeground }]}>{s.dash_this_quarter}</Text>
             </Tilt3DCard>
           </ReAnimated.View>
 
@@ -161,17 +165,17 @@ export default function DashboardScreen() {
             <Tilt3DCard style={[styles.botCard, { borderColor: waConnected ? `${colors.neonCyan}60` : colors.border, backgroundColor: colors.card }]}>
               <View style={[styles.row, { gap: 6 }]}>
                 <View style={[styles.smallDot, { backgroundColor: waConnected ? colors.neonCyan : colors.mutedForeground }]} />
-                <Text style={[styles.miniLabel, { color: waConnected ? colors.neonCyan : colors.mutedForeground, letterSpacing: 1 }]}>LILY BOT</Text>
+                <Text style={[styles.miniLabel, { color: waConnected ? colors.neonCyan : colors.mutedForeground, letterSpacing: 1 }]}>{s.dash_lily_bot}</Text>
               </View>
               <Text style={[styles.botReplies, { color: waConnected ? colors.neonCyan : colors.mutedForeground }]}>
                 {botStats?.totalReplies ?? 0}
               </Text>
               <Text style={[styles.miniLabel, { color: colors.mutedForeground }]}>
-                {waConnected ? "Replies sent" : "WA Disconnected"}
+                {waConnected ? s.dash_replies_sent : s.dash_wa_disconnected}
               </Text>
               {botStats && (
                 <Text style={[styles.botActive, { color: botStats.enabled ? "#25D366" : colors.accent }]}>
-                  {botStats.enabled ? "● Auto ON" : "● Manual"}
+                  {botStats.enabled ? s.dash_bot_auto : s.dash_bot_manual}
                 </Text>
               )}
             </Tilt3DCard>
@@ -181,9 +185,9 @@ export default function DashboardScreen() {
         {/* Stats Row */}
         <View style={[styles.row, { gap: 12 }]}>
           {[
-            { icon: "tool" as const, num: "4", label: "Active\nProjects", color: colors.neonBlue },
-            { icon: "file-text" as const, num: "7", label: "Pending\nQuotes", color: colors.accent },
-            { icon: "users" as const, num: botStats?.activeChats?.toString() ?? "0", label: "Active\nChats", color: "#25D366" },
+            { icon: "tool" as const, num: "4", label: s.dash_active_projects, color: colors.neonBlue },
+            { icon: "file-text" as const, num: "7", label: s.dash_pending_quotes, color: colors.accent },
+            { icon: "users" as const, num: botStats?.activeChats?.toString() ?? "0", label: s.dash_active_chats, color: "#25D366" },
           ].map((s, i) => (
             <ReAnimated.View key={s.label} entering={FadeInDown.duration(500).delay(260 + i * 60)} style={{ flex: 1 }}>
               <Tilt3DCard style={[styles.statCard, { borderColor: s.color, backgroundColor: colors.card }]}>
@@ -196,7 +200,7 @@ export default function DashboardScreen() {
         </View>
 
         {/* NUCLEAR DIAGNOSTICS (NEW FEATURE) */}
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginTop: 10 }]}>NUCLEAR CORE DIAGNOSTICS</Text>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginTop: 10 }]}>{s.dash_core_diagnostics}</Text>
         <View style={[styles.diagCard, { backgroundColor: colors.card, borderColor: coreTemp > 80 ? "#ef4444" : colors.border }]}>
           <View style={styles.row}>
             <View style={{ flex: 1 }}>

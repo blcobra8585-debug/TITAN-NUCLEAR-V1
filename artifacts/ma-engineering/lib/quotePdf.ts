@@ -225,17 +225,16 @@ export async function generateQuotePdf(input: QuotePdfInput): Promise<string> {
 
 export async function shareQuotePdf(input: QuotePdfInput): Promise<void> {
   const uri = await generateQuotePdf(input);
-  // Use React Native's built-in Share (no extra package needed)
-  const { Share } = await import("react-native");
-  const result = await Share.share(
-    {
-      url: uri,
-      title: `MA Engineering Quote — ${input.clientName}`,
-      message: `MA Engineering Quote — ${input.clientName}`,
-    },
-    { dialogTitle: `MA Engineering Quote — ${input.clientName}` },
-  );
-  if (result.action === Share.dismissedAction) {
-    // User cancelled — not an error
+  // expo-sharing gives a native share sheet that works with local file:// URIs
+  // on both Android and iOS. React Native's built-in Share.share() silently
+  // drops local file URIs on Android — use expo-sharing instead.
+  const Sharing = await import("expo-sharing");
+  const available = await Sharing.isAvailableAsync();
+  if (available) {
+    await Sharing.shareAsync(uri, {
+      mimeType: "application/pdf",
+      dialogTitle: `MA Engineering Quote — ${input.clientName}`,
+      UTI: "com.adobe.pdf",
+    });
   }
 }
